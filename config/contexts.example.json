@@ -1,0 +1,18 @@
+[
+  {
+    "id": "local",
+    "name": "Local",
+    "environment": "local",
+    "url": "nats://127.0.0.1:4222",
+    "auth": { "type": "none" },
+    "tls": { "enabled": false }
+  },
+  {
+    "id": "dev",
+    "name": "Dev",
+    "environment": "dev",
+    "url": "nats://nats.dev.internal:4222",
+    "auth": { "type": "userpass", "username": "REPLACE_ME", "password": "REPLACE_ME" },
+    "tls": { "enabled": true, "serverName": "nats.dev.internal" }
+  }
+]

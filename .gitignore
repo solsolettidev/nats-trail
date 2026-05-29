@@ -1,0 +1,12 @@
+node_modules/
+dist/
+build/
+*.log
+.env
+.env.local
+.DS_Store
+.cache/
+
+# Local product state (contexts, prefs, recent messages, audit)
+data/
+*.local.json

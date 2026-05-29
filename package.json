@@ -1,0 +1,25 @@
+{
+  "name": "nats-trail",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Visual tool to inspect and debug NATS and JetStream",
+  "workspaces": [
+    "packages/core",
+    "packages/server",
+    "packages/ui"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,ui -c blue,magenta \"npm:dev:server\" \"npm:dev:ui\"",
+    "dev:server": "npm run dev --workspace @nats-trail/server",
+    "dev:ui": "npm run dev --workspace @nats-trail/ui",
+    "build": "npm run build --workspace @nats-trail/ui",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run typecheck"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
