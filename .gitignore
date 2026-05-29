@@ -6,7 +6,10 @@ build/
 .env.local
 .DS_Store
 .cache/
-
+.claude/
+CLAUDE.MD
+nats-ui-v1.md
+nats-ui-v2.md
 # Local product state (contexts, prefs, recent messages, audit)
 data/
 *.local.json
