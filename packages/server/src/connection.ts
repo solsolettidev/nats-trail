@@ -131,6 +131,9 @@ class ConnectionManager {
         redelivered: ci.num_redelivered,
         lastDelivered: ci.delivered?.stream_seq ?? null,
         deliveryKind: ci.config.deliver_subject ? "push" : "pull",
+        filterSubjects:
+          ci.config.filter_subjects ??
+          (ci.config.filter_subject ? [ci.config.filter_subject] : []),
       });
     }
     return out;

@@ -88,6 +88,8 @@ export interface Consumer {
   lastDelivered: number | null;
   /** Push or pull. */
   deliveryKind: "push" | "pull";
+  /** Subjects this consumer filters from its stream (empty = whole stream). */
+  filterSubjects: string[];
 }
 
 /** A reusable, named search definition (used by saved filters and future CLI). */
