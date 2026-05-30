@@ -9,9 +9,18 @@ const PREFS_FILE = join(DATA_DIR, "preferences.json");
 export interface Preferences {
   selectedContextId: string | null;
   lastSubject: string | null;
+  recentSubjects: string[];
+  favoriteSubjects: string[];
+  recentStreams: string[];
 }
 
-const DEFAULT_PREFS: Preferences = { selectedContextId: null, lastSubject: null };
+const DEFAULT_PREFS: Preferences = {
+  selectedContextId: null,
+  lastSubject: null,
+  recentSubjects: [],
+  favoriteSubjects: [],
+  recentStreams: [],
+};
 
 function ensureDir(): void {
   if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });

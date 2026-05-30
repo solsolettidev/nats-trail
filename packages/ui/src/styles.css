@@ -583,6 +583,49 @@ select {
   min-width: 48px;
 }
 
+/* Subject / stream chips */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0;
+}
+.chips__label {
+  color: var(--muted);
+  font-size: 12px;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel);
+  overflow: hidden;
+}
+.chip--fav {
+  border-color: var(--warn);
+}
+.chip__star {
+  border: none;
+  background: none;
+  color: var(--warn);
+  padding: 2px 4px 2px 8px;
+  cursor: pointer;
+}
+.chip__subject {
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  padding: 3px 10px 3px 4px;
+  cursor: pointer;
+}
+.chip__subject:hover {
+  text-decoration: underline;
+}
+
 /* DLQ */
 .dlq {
   flex: 1;

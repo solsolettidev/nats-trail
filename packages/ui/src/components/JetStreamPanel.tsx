@@ -18,6 +18,18 @@ export function JetStreamPanel({ connected }: { connected: boolean }) {
 
   const [filters, setFilters] = useState<FilterState>(emptyFilters);
   const filtered = useMemo(() => applyFilters(live.messages, filters), [live.messages, filters]);
+  const [recentStreams, setRecentStreams] = useState<string[]>([]);
+
+  useEffect(() => {
+    api.getPreferences().then((p) => setRecentStreams(p.recentStreams ?? [])).catch(() => {});
+  }, []);
+
+  const select = (stream: string) => {
+    setSelected(stream);
+    const next = [stream, ...recentStreams.filter((s) => s !== stream)].slice(0, 8);
+    setRecentStreams(next);
+    api.savePreferences({ recentStreams: next }).catch(() => {});
+  };
 
   const refresh = () => {
     setLoading(true);
@@ -73,6 +85,19 @@ export function JetStreamPanel({ connected }: { connected: boolean }) {
         <button onClick={refresh}>Refresh</button>
       </div>
 
+      {recentStreams.length > 0 && (
+        <div className="chips">
+          <span className="chips__label">Recent</span>
+          {recentStreams.map((s) => (
+            <span key={s} className="chip">
+              <button className="chip__subject" onClick={() => select(s)}>
+                {s}
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
       {loading && <Loading />}
       {error && <ErrorState message={error} />}
       {streams && streams.length === 0 && <Empty label="No streams in this context." />}
@@ -93,7 +118,7 @@ export function JetStreamPanel({ connected }: { connected: boolean }) {
               <tr
                 key={s.name}
                 className={selected === s.name ? "js__row--active" : ""}
-                onClick={() => setSelected(s.name)}
+                onClick={() => select(s.name)}
               >
                 <td>{s.name}</td>
                 <td className="js__subjects">{s.subjects.join(", ")}</td>

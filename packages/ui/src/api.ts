@@ -11,6 +11,9 @@ export type { Context, ConnectionState, Stream, Consumer, Message };
 export interface Preferences {
   selectedContextId: string | null;
   lastSubject: string | null;
+  recentSubjects: string[];
+  favoriteSubjects: string[];
+  recentStreams: string[];
 }
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
