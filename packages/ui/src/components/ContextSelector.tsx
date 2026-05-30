@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { Context, ConnectionState } from "../api.js";
 
 type Env = Context["environment"];
+type AuthType = Context["auth"]["type"];
 const ENVS: Env[] = ["local", "dev", "staging", "prod", "custom"];
 
 interface Props {
@@ -27,12 +28,49 @@ export function ContextSelector({
   const [name, setName] = useState("");
   const [environment, setEnvironment] = useState<Env>("local");
   const [url, setUrl] = useState("nats://127.0.0.1:4222");
+  const [authType, setAuthType] = useState<AuthType>("none");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [token, setToken] = useState("");
+  const [tlsEnabled, setTlsEnabled] = useState(false);
+  const [caPath, setCaPath] = useState("");
+  const [serverName, setServerName] = useState("");
 
-  const submit = () => {
-    onCreate({ name, environment, url, auth: { type: "none" }, tls: { enabled: false } });
+  const reset = () => {
     setAdding(false);
     setName("");
     setUrl("nats://127.0.0.1:4222");
+    setEnvironment("local");
+    setAuthType("none");
+    setUsername("");
+    setPassword("");
+    setToken("");
+    setTlsEnabled(false);
+    setCaPath("");
+    setServerName("");
+  };
+
+  const submit = () => {
+    const auth: Context["auth"] =
+      authType === "userpass"
+        ? { type: "userpass", username, password }
+        : authType === "token"
+          ? { type: "token", token }
+          : { type: "none" };
+    const tls: Context["tls"] = tlsEnabled
+      ? { enabled: true, caPath: caPath || undefined, serverName: serverName || undefined }
+      : { enabled: false };
+    onCreate({ name, environment, url, auth, tls });
+    reset();
+  };
+
+  const guardedConnect = (c: Context) => {
+    if (
+      c.environment === "prod" &&
+      !window.confirm(`Connect to PRODUCTION context "${c.name}"?\n${c.url}`)
+    )
+      return;
+    onConnect(c.id);
   };
 
   return (
@@ -53,6 +91,62 @@ export function ContextSelector({
             ))}
           </select>
           <input placeholder="nats://host:4222" value={url} onChange={(e) => setUrl(e.target.value)} />
+
+          <select value={authType} onChange={(e) => setAuthType(e.target.value as AuthType)}>
+            <option value="none">No auth</option>
+            <option value="userpass">User / password</option>
+            <option value="token">Token</option>
+          </select>
+          {authType === "userpass" && (
+            <>
+              <input
+                placeholder="Username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+              />
+              <input
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </>
+          )}
+          {authType === "token" && (
+            <input
+              type="password"
+              placeholder="Token"
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+            />
+          )}
+
+          <label className="contexts__check">
+            <input
+              type="checkbox"
+              checked={tlsEnabled}
+              onChange={(e) => setTlsEnabled(e.target.checked)}
+            />
+            TLS
+          </label>
+          {tlsEnabled && (
+            <>
+              <input
+                placeholder="CA file path (optional)"
+                value={caPath}
+                onChange={(e) => setCaPath(e.target.value)}
+              />
+              <input
+                placeholder="Server name (optional)"
+                value={serverName}
+                onChange={(e) => setServerName(e.target.value)}
+              />
+            </>
+          )}
+
+          {environment === "prod" && (
+            <p className="contexts__warn">⚠ Production context — connections will require confirmation.</p>
+          )}
           <button disabled={!name || !url} onClick={submit}>
             Save
           </button>
@@ -76,7 +170,7 @@ export function ContextSelector({
                     Disconnect
                   </button>
                 ) : (
-                  <button disabled={busy} onClick={() => onConnect(c.id)}>
+                  <button disabled={busy} onClick={() => guardedConnect(c)}>
                     Connect
                   </button>
                 )}

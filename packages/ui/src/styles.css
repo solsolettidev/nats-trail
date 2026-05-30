@@ -150,6 +150,24 @@ select {
   border: 1px solid var(--border);
   border-radius: 8px;
 }
+.contexts__check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.contexts__check input {
+  width: auto;
+}
+.contexts__warn {
+  margin: 2px 0;
+  padding: 6px 8px;
+  font-size: 12px;
+  color: var(--prod);
+  border: 1px solid var(--prod);
+  border-radius: 6px;
+}
 .contexts__list {
   list-style: none;
   padding: 0;
