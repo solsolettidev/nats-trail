@@ -4,9 +4,9 @@
 
 ### Contexts
 - Create / list / delete contexts (local, dev, staging, prod, custom).
-- Each context: name, environment, NATS URL, optional auth and TLS fields.
-- Persisted locally under `data/contexts.json`.
-- Visual environment badge to avoid confusing prod with local.
+- Create form captures auth (none / user-password / token) and TLS (CA path, server name).
+- Secrets are stored locally under `data/contexts.json` and stripped from API responses.
+- Visual environment badge plus a confirmation prompt before connecting to a prod context.
 
 ### Connection
 - Connect / disconnect to the selected context through the API bridge.
