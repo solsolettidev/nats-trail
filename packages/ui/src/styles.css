@@ -564,3 +564,51 @@ select {
   font-size: 12px;
   min-width: 48px;
 }
+
+/* DLQ */
+.dlq {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+.dlq__sources ul {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.dlq__src {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  background: var(--panel);
+}
+.dlq__src--active {
+  border-color: var(--accent);
+}
+.dlq__stream {
+  font-family: ui-monospace, monospace;
+}
+.dlq__subjects {
+  color: var(--muted);
+  font-size: 12px;
+}
+.dlq__messages {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.dlq__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}

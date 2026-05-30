@@ -4,9 +4,10 @@ import { ContextSelector } from "./components/ContextSelector.js";
 import { ConnectionStatus } from "./components/ConnectionStatus.js";
 import { CorePanel } from "./components/CorePanel.js";
 import { JetStreamPanel } from "./components/JetStreamPanel.js";
+import { DlqPanel } from "./components/DlqPanel.js";
 import { Loading, ErrorState } from "./components/states.js";
 
-type Tab = "core" | "jetstream";
+type Tab = "core" | "jetstream" | "dlq";
 
 const EMPTY_CONN: ConnectionState = {
   status: "disconnected",
@@ -122,17 +123,20 @@ export function App() {
             >
               JetStream
             </button>
+            <button className={tab === "dlq" ? "tabs--active" : ""} onClick={() => setTab("dlq")}>
+              DLQ
+            </button>
           </nav>
 
-          {tab === "core" ? (
+          {tab === "core" && (
             <CorePanel
               connected={connected}
               initialSubject={lastSubject}
               onSubjectChange={onSubjectChange}
             />
-          ) : (
-            <JetStreamPanel connected={connected} />
           )}
+          {tab === "jetstream" && <JetStreamPanel connected={connected} />}
+          {tab === "dlq" && <DlqPanel connected={connected} />}
         </main>
       </div>
     </div>
