@@ -19,17 +19,15 @@
 - Recent messages buffer kept in memory so you can review messages that already passed.
 
 ### Message viewer
-- Full payload view.
-- Automatic JSON pretty print.
-- Copy full message.
-- Detects non-JSON payloads and shows them as text.
-
-> Tree view, in-payload search, copy-path and fullscreen are planned; v0 ships pretty print
-> + copy.
+- Full payload view with automatic JSON pretty print; non-JSON shown as text.
+- Tree view for JSON with expand/collapse and per-key copy-path.
+- In-payload search (filters tree nodes / raw lines, case-insensitive).
+- Raw/Tree toggle, fullscreen mode, and copy full message.
 
 ### JetStream
 - Streams list: name, subjects, message count, size, last message time.
 - Consumers view per stream: name, durable, pending, last delivered, basic state.
+- Replay + live tail of a consumer's subjects, filterable by subject, date range and text.
 
 ### States
 Every panel handles: loading, empty, error, connected and disconnected.
@@ -39,7 +37,5 @@ Every panel handles: loading, empty, error, connected and disconnected.
 
 ## Planned (later versions)
 
-- Tree view, in-payload search, copy specific path, fullscreen viewer.
-- JetStream message browsing with date/subject filters.
 - Saved filters, DLQ panel, `request_id` / `correlation_id` tracing.
 - CLI (`nats-ui ...`) and MCP/agent layer over the same core (see `nats-ui-v2.md`).
