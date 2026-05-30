@@ -348,6 +348,21 @@ select {
   color: var(--ok);
   border-color: var(--ok);
 }
+.viewer__actions {
+  display: flex;
+  gap: 6px;
+}
+.viewer--full {
+  position: fixed;
+  inset: 16px;
+  z-index: 50;
+  background: var(--bg);
+  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.6);
+}
+.viewer__search {
+  margin: 8px;
+  width: calc(100% - 16px);
+}
 .viewer__body {
   margin: 0;
   padding: 12px;
@@ -356,8 +371,55 @@ select {
   font-family: ui-monospace, monospace;
   font-size: 12px;
   line-height: 1.5;
+}
+.viewer__raw {
+  margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
+}
+.jt__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.jt__row:hover {
+  background: var(--panel-2);
+}
+.jt__toggle {
+  color: var(--muted);
+  width: 10px;
+}
+.jt__key {
+  color: var(--accent);
+  cursor: pointer;
+}
+.jt__key:hover {
+  text-decoration: underline;
+}
+.jt__colon {
+  color: var(--muted);
+}
+.jt__meta {
+  color: var(--muted);
+}
+.jt__val--number {
+  color: var(--warn);
+}
+.jt__val--boolean {
+  color: var(--custom);
+}
+.jt__val--string {
+  color: var(--ok);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.jt__copied {
+  color: var(--ok);
+  font-size: 10px;
+}
+.jt__empty {
+  color: var(--muted);
 }
 
 /* JetStream */
