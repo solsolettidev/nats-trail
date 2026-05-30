@@ -29,6 +29,11 @@
 - Consumers view per stream: name, durable, pending, last delivered, basic state.
 - Replay + live tail of a consumer's subjects, filterable by subject, date range and text.
 
+### DLQ
+- Auto-detects dead-letter subjects per stream (subjects matching `dlq`/`dead`).
+- Replays dead-letter messages and shows them in the viewer.
+- Vendor-agnostic, best-effort extraction of original subject and reason from the payload.
+
 ### States
 Every panel handles: loading, empty, error, connected and disconnected.
 
@@ -37,5 +42,5 @@ Every panel handles: loading, empty, error, connected and disconnected.
 
 ## Planned (later versions)
 
-- Saved filters, DLQ panel, `request_id` / `correlation_id` tracing.
+- Saved filters, `request_id` / `correlation_id` tracing.
 - CLI (`nats-ui ...`) and MCP/agent layer over the same core (see `nats-ui-v2.md`).
