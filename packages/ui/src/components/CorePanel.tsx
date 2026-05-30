@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Message } from "../api.js";
 import { useLiveMessages } from "../useLiveMessages.js";
 import { MessageViewer } from "./MessageViewer.js";
+import { MessageFilters, applyFilters, emptyFilters, type FilterState } from "./MessageFilters.js";
 import { Empty, ErrorState } from "./states.js";
 
 interface Props {
@@ -14,6 +15,8 @@ export function CorePanel({ connected, initialSubject, onSubjectChange }: Props)
   const live = useLiveMessages();
   const [input, setInput] = useState(initialSubject ?? "");
   const [selected, setSelected] = useState<Message | null>(null);
+  const [filters, setFilters] = useState<FilterState>(emptyFilters);
+  const filtered = useMemo(() => applyFilters(live.messages, filters), [live.messages, filters]);
 
   useEffect(() => {
     if (initialSubject) setInput(initialSubject);
@@ -54,13 +57,19 @@ export function CorePanel({ connected, initialSubject, onSubjectChange }: Props)
 
       {live.error && <ErrorState message={live.error} />}
 
+      {live.messages.length > 0 && (
+        <MessageFilters messages={live.messages} value={filters} onChange={setFilters} />
+      )}
+
       <div className="core__split">
         <div className="core__list">
           {live.messages.length === 0 ? (
             <Empty label={live.subject ? "Waiting for messages…" : "Subscribe to a subject."} />
+          ) : filtered.length === 0 ? (
+            <Empty label="No messages match the filters." />
           ) : (
             <ul>
-              {live.messages.map((m) => (
+              {filtered.map((m) => (
                 <li
                   key={m.id}
                   className={`msg ${selected?.id === m.id ? "msg--active" : ""}`}

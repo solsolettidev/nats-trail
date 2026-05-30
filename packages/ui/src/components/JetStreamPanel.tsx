@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api, type Stream, type Consumer, type Message } from "../api.js";
 import { useJetStreamMessages } from "../useJetStreamMessages.js";
 import { MessageViewer } from "./MessageViewer.js";
+import { MessageFilters, applyFilters, emptyFilters, type FilterState } from "./MessageFilters.js";
 import { Loading, Empty, ErrorState } from "./states.js";
 
 export function JetStreamPanel({ connected }: { connected: boolean }) {
@@ -15,29 +16,8 @@ export function JetStreamPanel({ connected }: { connected: boolean }) {
   const [selectedMsg, setSelectedMsg] = useState<Message | null>(null);
   const live = useJetStreamMessages();
 
-  const [fSubject, setFSubject] = useState("");
-  const [fFrom, setFFrom] = useState("");
-  const [fTo, setFTo] = useState("");
-  const [fText, setFText] = useState("");
-
-  const subjects = useMemo(
-    () => [...new Set(live.messages.map((m) => m.subject))].sort(),
-    [live.messages],
-  );
-
-  const filtered = useMemo(() => {
-    const q = fText.trim().toLowerCase();
-    const from = fFrom ? Date.parse(fFrom) : null;
-    const to = fTo ? Date.parse(fTo) : null;
-    return live.messages.filter((m) => {
-      if (fSubject && m.subject !== fSubject) return false;
-      if (from != null && m.timestamp < from) return false;
-      if (to != null && m.timestamp > to) return false;
-      if (q && !m.subject.toLowerCase().includes(q) && !m.data.toLowerCase().includes(q))
-        return false;
-      return true;
-    });
-  }, [live.messages, fSubject, fFrom, fTo, fText]);
+  const [filters, setFilters] = useState<FilterState>(emptyFilters);
+  const filtered = useMemo(() => applyFilters(live.messages, filters), [live.messages, filters]);
 
   const refresh = () => {
     setLoading(true);
@@ -185,46 +165,7 @@ export function JetStreamPanel({ connected }: { connected: boolean }) {
             </div>
           </div>
           {live.error && <ErrorState message={live.error} />}
-          <div className="overlay__filters">
-            <select value={fSubject} onChange={(e) => setFSubject(e.target.value)}>
-              <option value="">All subjects ({subjects.length})</option>
-              {subjects.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-            <input
-              type="search"
-              placeholder="Search subject or payload…"
-              value={fText}
-              onChange={(e) => setFText(e.target.value)}
-            />
-            <label>
-              From
-              <input
-                type="datetime-local"
-                value={fFrom}
-                onChange={(e) => setFFrom(e.target.value)}
-              />
-            </label>
-            <label>
-              To
-              <input type="datetime-local" value={fTo} onChange={(e) => setFTo(e.target.value)} />
-            </label>
-            {(fSubject || fText || fFrom || fTo) && (
-              <button
-                onClick={() => {
-                  setFSubject("");
-                  setFText("");
-                  setFFrom("");
-                  setFTo("");
-                }}
-              >
-                Reset
-              </button>
-            )}
-          </div>
+          <MessageFilters messages={live.messages} value={filters} onChange={setFilters} />
           <div className="overlay__body">
             <div className="overlay__list">
               {filtered.length === 0 ? (

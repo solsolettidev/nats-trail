@@ -526,18 +526,18 @@ select {
   border-color: var(--err);
   color: var(--err);
 }
-.overlay__filters {
+.filters {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  padding-top: 12px;
+  padding: 8px 0;
 }
-.overlay__filters input[type="search"] {
+.filters input[type="search"] {
   flex: 1;
   min-width: 160px;
 }
-.overlay__filters label {
+.filters label {
   display: flex;
   align-items: center;
   gap: 6px;
