@@ -38,7 +38,9 @@
 Every panel handles: loading, empty, error, connected and disconnected.
 
 ### Persistence
-- Contexts and UI preferences (selected context, last subject) stored locally.
+- Contexts and UI preferences stored locally: selected context, last subject,
+  recent + favorite subjects, and recently inspected streams.
+- Core panel shows favorite/recent subject chips; JetStream shows recent streams.
 
 ## Planned (later versions)
 
