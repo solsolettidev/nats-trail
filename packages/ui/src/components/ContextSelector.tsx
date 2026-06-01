@@ -32,6 +32,7 @@ export function ContextSelector({
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [token, setToken] = useState("");
+  const [credsPath, setCredsPath] = useState("");
   const [tlsEnabled, setTlsEnabled] = useState(false);
   const [caPath, setCaPath] = useState("");
   const [serverName, setServerName] = useState("");
@@ -45,6 +46,7 @@ export function ContextSelector({
     setUsername("");
     setPassword("");
     setToken("");
+    setCredsPath("");
     setTlsEnabled(false);
     setCaPath("");
     setServerName("");
@@ -56,6 +58,8 @@ export function ContextSelector({
         ? { type: "userpass", username, password }
         : authType === "token"
           ? { type: "token", token }
+          : authType === "creds"
+            ? { type: "creds", credsPath }
           : { type: "none" };
     const tls: Context["tls"] = tlsEnabled
       ? { enabled: true, caPath: caPath || undefined, serverName: serverName || undefined }
@@ -96,6 +100,7 @@ export function ContextSelector({
             <option value="none">No auth</option>
             <option value="userpass">User / password</option>
             <option value="token">Token</option>
+            <option value="creds">.creds file</option>
           </select>
           {authType === "userpass" && (
             <>
@@ -118,6 +123,13 @@ export function ContextSelector({
               placeholder="Token"
               value={token}
               onChange={(e) => setToken(e.target.value)}
+            />
+          )}
+          {authType === "creds" && (
+            <input
+              placeholder="/path/to/user.creds"
+              value={credsPath}
+              onChange={(e) => setCredsPath(e.target.value)}
             />
           )}
 

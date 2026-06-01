@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { formatPayload, type Message } from "../api.js";
+import { useEffect, useState } from "react";
+import { api, formatPayload, type Message } from "../api.js";
 
 export function MessageViewer({ message }: { message: Message | null }) {
   const [copied, setCopied] = useState<string | null>(null);
@@ -9,11 +9,21 @@ export function MessageViewer({ message }: { message: Message | null }) {
 
   const text = message ? formatPayload(message) : "";
 
+  useEffect(() => {
+    api.getPreferences().then((p) => setMode(p.messageViewerMode ?? "tree")).catch(() => {});
+  }, []);
+
   const copy = (value: string, label: string) => {
     navigator.clipboard.writeText(value).then(() => {
       setCopied(label);
       setTimeout(() => setCopied((c) => (c === label ? null : c)), 1200);
     });
+  };
+
+  const toggleMode = () => {
+    const next = mode === "tree" ? "raw" : "tree";
+    setMode(next);
+    api.savePreferences({ messageViewerMode: next }).catch(() => {});
   };
 
   if (!message) return <div className="state state--empty">Select a message</div>;
@@ -35,7 +45,7 @@ export function MessageViewer({ message }: { message: Message | null }) {
         </div>
         <div className="viewer__actions">
           {message.isJson && (
-            <button onClick={() => setMode((m) => (m === "tree" ? "raw" : "tree"))}>
+            <button onClick={toggleMode}>
               {mode === "tree" ? "Raw" : "Tree"}
             </button>
           )}

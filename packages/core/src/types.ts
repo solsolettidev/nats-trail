@@ -75,6 +75,13 @@ export interface Stream {
   lastTs: number | null;
   firstSeq: number;
   lastSeq: number;
+  retention: string;
+  storage: string;
+  replicas: number;
+  maxAge: number;
+  maxMessages: number;
+  maxBytes: number;
+  discard: string;
 }
 
 export interface Consumer {
@@ -90,6 +97,8 @@ export interface Consumer {
   deliveryKind: "push" | "pull";
   /** Subjects this consumer filters from its stream (empty = whole stream). */
   filterSubjects: string[];
+  state: "ok" | "warning";
+  errors: string[];
 }
 
 /** A reusable, named search definition (used by saved filters and future CLI). */

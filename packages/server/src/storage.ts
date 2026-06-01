@@ -12,6 +12,8 @@ export interface Preferences {
   recentSubjects: string[];
   favoriteSubjects: string[];
   recentStreams: string[];
+  dlqSubjects: string[];
+  messageViewerMode: "tree" | "raw";
 }
 
 const DEFAULT_PREFS: Preferences = {
@@ -20,6 +22,8 @@ const DEFAULT_PREFS: Preferences = {
   recentSubjects: [],
   favoriteSubjects: [],
   recentStreams: [],
+  dlqSubjects: [],
+  messageViewerMode: "tree",
 };
 
 function ensureDir(): void {

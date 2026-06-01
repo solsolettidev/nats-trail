@@ -13,6 +13,7 @@ export function JetStreamPanel({ connected }: { connected: boolean }) {
   const [consumers, setConsumers] = useState<Consumer[] | null>(null);
   const [consumersError, setConsumersError] = useState<string | null>(null);
   const [activeConsumer, setActiveConsumer] = useState<string | null>(null);
+  const [activeSource, setActiveSource] = useState<string | null>(null);
   const [selectedMsg, setSelectedMsg] = useState<Message | null>(null);
   const live = useJetStreamMessages();
 
@@ -48,6 +49,7 @@ export function JetStreamPanel({ connected }: { connected: boolean }) {
       setSelected(null);
       setConsumers(null);
       setActiveConsumer(null);
+      setActiveSource(null);
       live.unsubscribe();
     }
   }, [connected]);
@@ -57,6 +59,7 @@ export function JetStreamPanel({ connected }: { connected: boolean }) {
     setConsumers(null);
     setConsumersError(null);
     setActiveConsumer(null);
+    setActiveSource(null);
     live.unsubscribe();
     api
       .listConsumers(selected)
@@ -66,12 +69,22 @@ export function JetStreamPanel({ connected }: { connected: boolean }) {
 
   const inspect = (c: Consumer) => {
     setActiveConsumer(c.name);
+    setActiveSource(c.name);
     setSelectedMsg(null);
     live.subscribe(c.stream, c.filterSubjects);
   };
 
+  const inspectStream = (s: Stream) => {
+    select(s.name);
+    setActiveConsumer(null);
+    setActiveSource(s.name);
+    setSelectedMsg(null);
+    live.subscribe(s.name, s.subjects);
+  };
+
   const closeMessages = () => {
     setActiveConsumer(null);
+    setActiveSource(null);
     setSelectedMsg(null);
     live.unsubscribe();
   };
@@ -111,6 +124,8 @@ export function JetStreamPanel({ connected }: { connected: boolean }) {
               <th>Messages</th>
               <th>Bytes</th>
               <th>Last</th>
+              <th>Config</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -125,6 +140,12 @@ export function JetStreamPanel({ connected }: { connected: boolean }) {
                 <td>{s.messages}</td>
                 <td>{s.bytes}</td>
                 <td>{s.lastTs ? new Date(s.lastTs).toLocaleString() : "—"}</td>
+                <td className="js__subjects">
+                  {s.retention} · {s.storage} · r{s.replicas} · {formatLimit(s.maxMessages)} msgs · {formatLimit(s.maxBytes)} B
+                </td>
+                <td>
+                  <button onClick={(e) => { e.stopPropagation(); inspectStream(s); }}>Messages</button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -148,6 +169,8 @@ export function JetStreamPanel({ connected }: { connected: boolean }) {
                   <th>Ack pending</th>
                   <th>Redelivered</th>
                   <th>Last seq</th>
+                  <th>State</th>
+                  <th>Issues</th>
                 </tr>
               </thead>
               <tbody>
@@ -164,6 +187,8 @@ export function JetStreamPanel({ connected }: { connected: boolean }) {
                     <td>{c.ackPending}</td>
                     <td>{c.redelivered}</td>
                     <td>{c.lastDelivered ?? "—"}</td>
+                    <td>{c.state}</td>
+                    <td>{c.errors.length ? c.errors.join(", ") : "—"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -172,11 +197,11 @@ export function JetStreamPanel({ connected }: { connected: boolean }) {
         </div>
       )}
 
-      {activeConsumer && (
+      {activeSource && (
         <div className="overlay" role="dialog" aria-modal="true">
           <div className="overlay__head">
             <div className="overlay__title">
-              <h3>{activeConsumer}</h3>
+              <h3>{activeSource}</h3>
               <span className="overlay__sub">{selected}</span>
               <span className={`core__ws core__ws--${live.status}`}>
                 {live.stream ? "live" : "stopped"} · {filtered.length}/{live.messages.length} msg
@@ -222,4 +247,8 @@ export function JetStreamPanel({ connected }: { connected: boolean }) {
       )}
     </div>
   );
+}
+
+function formatLimit(n: number): string {
+  return n < 0 ? "∞" : String(n);
 }

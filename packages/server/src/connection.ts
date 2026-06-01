@@ -1,9 +1,11 @@
 import {
   connect,
+  credsAuthenticator,
   type NatsConnection,
   type ConnectionOptions,
   type JetStreamManager,
 } from "nats";
+import { readFileSync } from "node:fs";
 import {
   normalizeError,
   type Context,
@@ -113,6 +115,13 @@ class ConnectionManager {
         lastTs: si.state.last_ts ? Date.parse(si.state.last_ts) || null : null,
         firstSeq: si.state.first_seq,
         lastSeq: si.state.last_seq,
+        retention: String(si.config.retention),
+        storage: String(si.config.storage),
+        replicas: si.config.num_replicas,
+        maxAge: Number(si.config.max_age),
+        maxMessages: si.config.max_msgs,
+        maxBytes: si.config.max_bytes,
+        discard: String(si.config.discard),
       });
     }
     return out;
@@ -122,6 +131,7 @@ class ConnectionManager {
     const jsm = await this.requireJsm();
     const out: Consumer[] = [];
     for await (const ci of jsm.consumers.list(stream)) {
+      const errors = consumerIssues(ci.num_ack_pending, ci.num_redelivered, ci.cluster?.replicas?.some((r) => !r.current) ?? false);
       out.push({
         name: ci.name,
         stream,
@@ -134,6 +144,8 @@ class ConnectionManager {
         filterSubjects:
           ci.config.filter_subjects ??
           (ci.config.filter_subject ? [ci.config.filter_subject] : []),
+        state: errors.length ? "warning" : "ok",
+        errors,
       });
     }
     return out;
@@ -160,12 +172,23 @@ function toConnectionOptions(ctx: Context): ConnectionOptions {
     opts.pass = ctx.auth.password;
   } else if (ctx.auth.type === "token") {
     opts.token = ctx.auth.token;
+  } else if (ctx.auth.type === "creds" && ctx.auth.credsPath) {
+    opts.authenticator = credsAuthenticator(readFileSync(ctx.auth.credsPath));
   }
   if (ctx.tls.enabled) {
     opts.tls = {};
     if (ctx.tls.caPath) opts.tls.caFile = ctx.tls.caPath;
+    if (ctx.tls.serverName) (opts.tls as typeof opts.tls & { servername?: string }).servername = ctx.tls.serverName;
   }
   return opts;
+}
+
+function consumerIssues(ackPending: number, redelivered: number, replicaLag: boolean): string[] {
+  const issues: string[] = [];
+  if (ackPending > 0) issues.push(`${ackPending} ack pending`);
+  if (redelivered > 0) issues.push(`${redelivered} redelivered`);
+  if (replicaLag) issues.push("replica lag");
+  return issues;
 }
 
 export const connectionManager = new ConnectionManager();

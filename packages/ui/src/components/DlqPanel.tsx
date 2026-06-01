@@ -10,7 +10,12 @@ export function DlqPanel({ connected }: { connected: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [selectedMsg, setSelectedMsg] = useState<Message | null>(null);
+  const [manual, setManual] = useState("");
   const live = useJetStreamMessages();
+
+  useEffect(() => {
+    api.getPreferences().then((p) => setManual((p.dlqSubjects ?? []).join("\n"))).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!connected) {
@@ -24,8 +29,12 @@ export function DlqPanel({ connected }: { connected: boolean }) {
   }, [connected]);
 
   const sources = (streams ?? [])
-    .map((s) => ({ stream: s.name, subjects: s.subjects.filter(isDlqSubject) }))
+    .map((s) => ({ stream: s.name, subjects: mergeSubjects(s.subjects.filter(isDlqSubject), manualSubjects(manual)) }))
     .filter((s) => s.subjects.length > 0);
+
+  const saveManual = () => {
+    api.savePreferences({ dlqSubjects: manualSubjects(manual) }).catch(() => {});
+  };
 
   const open = (stream: string, subjects: string[]) => {
     setSelected(stream);
@@ -36,11 +45,19 @@ export function DlqPanel({ connected }: { connected: boolean }) {
   if (!connected) return <Empty label="Connect to inspect dead-letter messages." />;
   if (error) return <ErrorState message={error} />;
   if (!streams) return <Loading />;
-  if (sources.length === 0)
-    return <Empty label="No dead-letter subjects detected in any stream." />;
 
   return (
     <div className="dlq">
+      <div className="filters">
+        <textarea
+          placeholder="Optional DLQ subjects, one per line e.g. errors.> or ORDERS.dlq"
+          value={manual}
+          onChange={(e) => setManual(e.target.value)}
+          onBlur={saveManual}
+        />
+        <button onClick={saveManual}>Save DLQ subjects</button>
+      </div>
+      {sources.length === 0 && <Empty label="No dead-letter subjects detected. Add DLQ subjects above if needed." />}
       <div className="dlq__sources">
         <h3>Dead-letter sources</h3>
         <ul>
@@ -102,4 +119,15 @@ export function DlqPanel({ connected }: { connected: boolean }) {
       )}
     </div>
   );
+}
+
+function manualSubjects(value: string): string[] {
+  return value
+    .split(/[\n,]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function mergeSubjects(a: string[], b: string[]): string[] {
+  return [...new Set([...a, ...b])];
 }

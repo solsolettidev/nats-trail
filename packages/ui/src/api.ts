@@ -14,6 +14,8 @@ export interface Preferences {
   recentSubjects: string[];
   favoriteSubjects: string[];
   recentStreams: string[];
+  dlqSubjects: string[];
+  messageViewerMode: "tree" | "raw";
 }
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
