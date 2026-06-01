@@ -4,7 +4,7 @@ Visual tool to inspect and debug **NATS Core** and **JetStream**. Think of it as
 "Swagger for messaging systems": connect to a context, subscribe to subjects live,
 read messages with JSON pretty print, and browse streams and consumers.
 
-> **Status:** v0 — UI + API bridge + core. CLI and MCP/agent layers come later (see
+> **Status:** v1 — UI + API bridge + core. CLI and MCP/agent layers come later (see
 > `nats-ui-v2.md`), but the architecture already separates a reusable core so those
 > interfaces can be added without duplicating logic.
 
@@ -41,13 +41,16 @@ npm run dev
 `npm run dev` runs the API bridge and the UI together. The UI proxies `/api` and `/ws`
 to the bridge, so you only open the UI URL.
 
-## v0 features
+## v1 features
 
 - Context selector (local / dev / staging / prod / custom)
+- Context auth with none, user/password, token and `.creds`; TLS CA and server name
 - Connection status (connected / disconnected / errors)
 - NATS Core: subjects panel + live subject subscription
-- Received messages list + message viewer with JSON pretty print
-- JetStream: streams list + basic consumers view
+- Received messages list + message viewer with JSON pretty print, tree view, search and fullscreen
+- JetStream: streams list, stream message inspection, replay/live tail and consumers view
+- Filters by subject, date range, text and JSON event type
+- DLQ panel with auto-detected and manually configured dead-letter subjects
 - Loading, empty, error, connected and disconnected states
 - Local persistence of contexts and preferences
 

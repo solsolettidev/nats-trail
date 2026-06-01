@@ -1,10 +1,10 @@
 # Features
 
-## v0 (current)
+## v1 (current)
 
 ### Contexts
 - Create / list / delete contexts (local, dev, staging, prod, custom).
-- Create form captures auth (none / user-password / token) and TLS (CA path, server name).
+- Create form captures auth (none / user-password / token / `.creds`) and TLS (CA path, server name).
 - Secrets are stored locally under `data/contexts.json` and stripped from API responses.
 - Visual environment badge plus a confirmation prompt before connecting to a prod context.
 
@@ -22,15 +22,17 @@
 - Full payload view with automatic JSON pretty print; non-JSON shown as text.
 - Tree view for JSON with expand/collapse and per-key copy-path.
 - In-payload search (filters tree nodes / raw lines, case-insensitive).
-- Raw/Tree toggle, fullscreen mode, and copy full message.
+- Raw/Tree toggle, fullscreen mode, copy full message, and persisted viewer mode preference.
 
 ### JetStream
-- Streams list: name, subjects, message count, size, last message time.
-- Consumers view per stream: name, durable, pending, last delivered, basic state.
-- Replay + live tail of a consumer's subjects, filterable by subject, date range and text.
+- Streams list: name, subjects, message count, size, last message time and basic configuration.
+- Direct stream message inspection, plus replay + live tail of a consumer's subjects.
+- Consumers view per stream: name, durable, pending, last delivered, state and relevant issues.
+- Message buffers are filterable by subject, date range, text and JSON event type.
 
 ### DLQ
 - Auto-detects dead-letter subjects per stream (subjects matching `dlq`/`dead`).
+- Supports manually configured DLQ subjects when auto-detection is not enough.
 - Replays dead-letter messages and shows them in the viewer.
 - Vendor-agnostic, best-effort extraction of original subject and reason from the payload.
 
@@ -39,7 +41,7 @@ Every panel handles: loading, empty, error, connected and disconnected.
 
 ### Persistence
 - Contexts and UI preferences stored locally: selected context, last subject,
-  recent + favorite subjects, and recently inspected streams.
+  recent + favorite subjects, recently inspected streams, DLQ subjects and viewer mode.
 - Core panel shows favorite/recent subject chips; JetStream shows recent streams.
 
 ## Planned (later versions)
