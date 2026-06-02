@@ -6,8 +6,41 @@ import { CorePanel } from "./components/CorePanel.js";
 import { JetStreamPanel } from "./components/JetStreamPanel.js";
 import { DlqPanel } from "./components/DlqPanel.js";
 import { Loading, ErrorState } from "./components/states.js";
+import { Icon } from "./components/ui.js";
 
 type Tab = "core" | "jetstream" | "dlq";
+
+const TABS: { id: Tab; label: string; icon: string }[] = [
+  { id: "core", label: "NATS Core", icon: "broadcast" },
+  { id: "jetstream", label: "JetStream", icon: "stack" },
+  { id: "dlq", label: "DLQ", icon: "skull" },
+];
+
+function BrandMark() {
+  return (
+    <svg
+      className="app__logo"
+      width={22}
+      height={22}
+      viewBox="0 0 96 96"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M15 79 L37 53 L59 64 L80 30"
+        stroke="var(--accent)"
+        strokeWidth="6.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="15" cy="79" r="5" fill="var(--muted)" />
+      <circle cx="37" cy="53" r="5" fill="var(--muted)" />
+      <circle cx="59" cy="64" r="5" fill="var(--muted)" />
+      <circle cx="80" cy="30" r="14.5" stroke="var(--accent)" strokeWidth="3.5" />
+      <circle cx="80" cy="30" r="7" fill="var(--accent)" />
+    </svg>
+  );
+}
 
 const EMPTY_CONN: ConnectionState = {
   status: "disconnected",
@@ -83,15 +116,28 @@ export function App() {
   };
 
   const connected = connection.status === "connected";
+  const connectedCtx = contexts?.find((c) => c.id === connection.contextId) ?? null;
+  const env = connected && connectedCtx ? connectedCtx.environment : null;
 
   return (
-    <div className="app">
+    <div className="app" data-env={env ?? undefined}>
+      <div className="app__envstrip" />
       <header className="app__header">
         <div className="app__brand">
-          <span className="app__logo">⟿</span>
-          <span>NATS Trail</span>
+          <BrandMark />
+          <span>
+            NATS <span className="app__brand-accent">Trail</span>
+          </span>
+          {connectedCtx && <span className="dim">/ {connectedCtx.name}</span>}
         </div>
-        <ConnectionStatus state={connection} />
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-3)" }}>
+          {env === "prod" && (
+            <span className="prodflag">
+              <Icon name="warning-octagon" weight="fill" /> PROD
+            </span>
+          )}
+          <ConnectionStatus state={connection} />
+        </div>
       </header>
 
       <div className="app__body">
@@ -112,31 +158,32 @@ export function App() {
         </aside>
 
         <main className="app__main">
-          {error && <ErrorState message={error} />}
-          <nav className="tabs">
-            <button className={tab === "core" ? "tabs--active" : ""} onClick={() => setTab("core")}>
-              NATS Core
-            </button>
-            <button
-              className={tab === "jetstream" ? "tabs--active" : ""}
-              onClick={() => setTab("jetstream")}
-            >
-              JetStream
-            </button>
-            <button className={tab === "dlq" ? "tabs--active" : ""} onClick={() => setTab("dlq")}>
-              DLQ
-            </button>
+          <nav className="tabs" role="tablist">
+            {TABS.map((tb) => (
+              <button
+                key={tb.id}
+                role="tab"
+                aria-selected={tab === tb.id}
+                className={"tab" + (tab === tb.id ? " tab--active" : "")}
+                onClick={() => setTab(tb.id)}
+              >
+                <Icon name={tb.icon} weight={tab === tb.id ? "fill" : "regular"} /> {tb.label}
+              </button>
+            ))}
           </nav>
 
-          {tab === "core" && (
-            <CorePanel
-              connected={connected}
-              initialSubject={lastSubject}
-              onSubjectChange={onSubjectChange}
-            />
-          )}
-          {tab === "jetstream" && <JetStreamPanel connected={connected} />}
-          {tab === "dlq" && <DlqPanel connected={connected} />}
+          <div className="panel">
+            {error && <ErrorState message={error} />}
+            {tab === "core" && (
+              <CorePanel
+                connected={connected}
+                initialSubject={lastSubject}
+                onSubjectChange={onSubjectChange}
+              />
+            )}
+            {tab === "jetstream" && <JetStreamPanel connected={connected} />}
+            {tab === "dlq" && <DlqPanel connected={connected} />}
+          </div>
         </main>
       </div>
     </div>

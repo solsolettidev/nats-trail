@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { getPath } from "@nats-trail/core";
 import type { Message } from "../api.js";
+import { Icon } from "./ui.js";
 
 export interface FilterState {
   subject: string;
@@ -53,36 +54,61 @@ export function MessageFilters({ messages, value, onChange }: Props) {
   const dirty = value.subject || value.text || value.from || value.to || value.eventType;
 
   return (
-    <div className="filters">
-      <select value={value.subject} onChange={(e) => set({ subject: e.target.value })}>
-        <option value="">All subjects ({subjects.length})</option>
+    <div className="filters" role="search">
+      <select
+        className="select"
+        value={value.subject}
+        onChange={(e) => set({ subject: e.target.value })}
+        aria-label="Subject"
+      >
+        <option value="">All subjects · {subjects.length}</option>
         {subjects.map((s) => (
           <option key={s} value={s}>
             {s}
           </option>
         ))}
       </select>
-      <input
-        type="search"
-        placeholder="Search subject or payload…"
-        value={value.text}
-        onChange={(e) => set({ text: e.target.value })}
-      />
-      <input
-        type="text"
-        placeholder="Event type e.g. type=order.created"
-        value={value.eventType}
-        onChange={(e) => set({ eventType: e.target.value })}
-      />
-      <label>
-        From
-        <input type="datetime-local" value={value.from} onChange={(e) => set({ from: e.target.value })} />
-      </label>
-      <label>
-        To
-        <input type="datetime-local" value={value.to} onChange={(e) => set({ to: e.target.value })} />
-      </label>
-      {dirty && <button onClick={() => onChange(emptyFilters)}>Reset</button>}
+      <div className="field">
+        <Icon name="magnifying-glass" />
+        <input
+          className="input"
+          type="search"
+          placeholder="Search subject or payload…"
+          value={value.text}
+          onChange={(e) => set({ text: e.target.value })}
+        />
+      </div>
+      <div className="kv" title="Match a JSON field, e.g. type=order.updated">
+        <span className="kv__tag">event‑type</span>
+        <input
+          className="input"
+          placeholder="key=value"
+          value={value.eventType}
+          onChange={(e) => set({ eventType: e.target.value })}
+          aria-label="Event type filter"
+        />
+      </div>
+      <div className="range">
+        <Icon name="calendar-blank" />
+        <input
+          type="datetime-local"
+          value={value.from}
+          onChange={(e) => set({ from: e.target.value })}
+          aria-label="From"
+        />
+        <Icon name="arrow-right" className="arrow" />
+        <input
+          type="datetime-local"
+          value={value.to}
+          onChange={(e) => set({ to: e.target.value })}
+          aria-label="To"
+        />
+      </div>
+      {dirty && (
+        <button className="btn btn--ghost btn--sm filters__reset" onClick={() => onChange(emptyFilters)}>
+          <Icon name="x" /> Clear
+        </button>
+      )}
     </div>
   );
 }

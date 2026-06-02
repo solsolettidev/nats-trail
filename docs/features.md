@@ -39,6 +39,12 @@
 ### States
 Every panel handles: loading, empty, error, connected and disconnected.
 
+### Branding
+- "Waypoint" mark: a trail of nodes leading to a focus ring, evoking tracing a
+  message flow to the event under inspection.
+- Inline SVG in the header brand (inherits `--accent`/`--muted`), with the wordmark
+  "NATS Trail" (Trail in accent). Favicon at `packages/ui/public/favicon.svg`.
+
 ### Persistence
 - Contexts and UI preferences stored locally: selected context, last subject,
   recent + favorite subjects, recently inspected streams, DLQ subjects and viewer mode.

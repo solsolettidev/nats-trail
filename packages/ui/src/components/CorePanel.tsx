@@ -3,7 +3,9 @@ import { api, type Message } from "../api.js";
 import { useLiveMessages } from "../useLiveMessages.js";
 import { MessageViewer } from "./MessageViewer.js";
 import { MessageFilters, applyFilters, emptyFilters, type FilterState } from "./MessageFilters.js";
+import { MessageList, SplitWorkspace } from "./MessageList.js";
 import { Empty, ErrorState } from "./states.js";
+import { Icon } from "./ui.js";
 
 const MAX_RECENT = 8;
 
@@ -60,40 +62,57 @@ export function CorePanel({ connected, initialSubject, onSubjectChange }: Props)
     subscribe(input);
   };
 
-  if (!connected) return <Empty label="Connect to a context to subscribe to subjects." />;
+  if (!connected)
+    return (
+      <Empty
+        icon="plugs"
+        label="Not connected"
+        hint="Connect to a context in the sidebar to subscribe to subjects."
+      />
+    );
+
+  const chips = [...favorites, ...recent.filter((r) => !favorites.includes(r))];
 
   return (
-    <div className="core">
-      <form className="core__bar" onSubmit={submit}>
-        <input
-          placeholder="subject pattern e.g. orders.* or project.>"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-        />
-        <button type="submit">Subscribe</button>
+    <>
+      <form className="subbar" onSubmit={submit}>
+        <div className="field">
+          <Icon name="broadcast" />
+          <input
+            className="input mono"
+            placeholder="subject pattern  e.g.  orders.*  or  project.>"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+          />
+        </div>
+        <button type="submit" className="btn btn--primary">
+          <Icon name="play" weight="fill" /> Subscribe
+        </button>
         {live.subject && (
-          <button type="button" onClick={live.unsubscribe}>
-            Stop
+          <button type="button" className="btn" onClick={live.unsubscribe}>
+            <Icon name="stop" /> Stop
           </button>
         )}
         {live.messages.length > 0 && (
-          <button type="button" onClick={live.clear}>
-            Clear
+          <button type="button" className="btn btn--ghost" onClick={live.clear}>
+            <Icon name="eraser" /> Clear
           </button>
         )}
-        <span className={`core__ws core__ws--${live.status}`}>
-          {live.subject ? `live: ${live.subject}` : "not subscribed"}
+        <span className={"ws-state" + (live.subject ? " is-open" : "")}>
+          <span className="dot" />
+          {live.subject ? `live · ${live.subject}` : "not subscribed"}
         </span>
       </form>
 
-      {(favorites.length > 0 || recent.length > 0) && (
+      {chips.length > 0 && (
         <div className="chips">
-          {[...favorites, ...recent.filter((r) => !favorites.includes(r))].map((s) => {
+          <span className="chips__label">Subjects</span>
+          {chips.map((s) => {
             const fav = favorites.includes(s);
             return (
-              <span key={s} className={`chip ${fav ? "chip--fav" : ""}`}>
+              <span key={s} className={"chip" + (fav ? " chip--fav" : "")}>
                 <button className="chip__star" title="Favorite" onClick={() => toggleFavorite(s)}>
-                  {fav ? "★" : "☆"}
+                  <Icon name="star" weight={fav ? "fill" : "regular"} />
                 </button>
                 <button className="chip__subject" onClick={() => subscribe(s)}>
                   {s}
@@ -110,32 +129,27 @@ export function CorePanel({ connected, initialSubject, onSubjectChange }: Props)
         <MessageFilters messages={live.messages} value={filters} onChange={setFilters} />
       )}
 
-      <div className="core__split">
-        <div className="core__list">
-          {live.messages.length === 0 ? (
-            <Empty label={live.subject ? "Waiting for messages…" : "Subscribe to a subject."} />
+      <SplitWorkspace
+        viewerEmpty={!selected}
+        list={
+          live.messages.length === 0 ? (
+            <Empty
+              icon="broadcast"
+              label={live.subject ? "Waiting for messages…" : "No subscription"}
+              hint={
+                live.subject
+                  ? `Live on ${live.subject}`
+                  : "Subscribe to a subject pattern to stream messages."
+              }
+            />
           ) : filtered.length === 0 ? (
-            <Empty label="No messages match the filters." />
+            <Empty icon="funnel" label="No matches" hint="No messages match the current filters." />
           ) : (
-            <ul>
-              {filtered.map((m) => (
-                <li
-                  key={m.id}
-                  className={`msg ${selected?.id === m.id ? "msg--active" : ""}`}
-                  onClick={() => setSelected(m)}
-                >
-                  <span className="msg__time">{new Date(m.timestamp).toLocaleTimeString()}</span>
-                  <span className="msg__subject">{m.subject}</span>
-                  <span className="msg__preview">{m.data.slice(0, 80)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-        <div className="core__viewer">
-          <MessageViewer message={selected} />
-        </div>
-      </div>
-    </div>
+            <MessageList messages={filtered} selectedId={selected?.id} onSelect={setSelected} />
+          )
+        }
+        viewer={<MessageViewer message={selected} fullscreenable />}
+      />
+    </>
   );
 }

@@ -3,7 +3,24 @@ import { api, type Stream, type Consumer, type Message } from "../api.js";
 import { useJetStreamMessages } from "../useJetStreamMessages.js";
 import { MessageViewer } from "./MessageViewer.js";
 import { MessageFilters, applyFilters, emptyFilters, type FilterState } from "./MessageFilters.js";
+import { MessageList, SplitWorkspace } from "./MessageList.js";
 import { Loading, Empty, ErrorState } from "./states.js";
+import { Badge, Icon, fmtBytes, fmtInt } from "./ui.js";
+
+function ConsumerHealth({ c }: { c: Consumer }) {
+  if (c.redelivered > 0)
+    return (
+      <Badge variant="warn">
+        <Icon name="warning" /> {fmtInt(c.redelivered)} redelivered
+      </Badge>
+    );
+  if (c.pending > 200) return <Badge variant="warn">{fmtInt(c.pending)} pending</Badge>;
+  return (
+    <Badge variant="json">
+      <Icon name="check" /> healthy
+    </Badge>
+  );
+}
 
 export function JetStreamPanel({ connected }: { connected: boolean }) {
   const [streams, setStreams] = useState<Stream[] | null>(null);
@@ -67,6 +84,14 @@ export function JetStreamPanel({ connected }: { connected: boolean }) {
       .catch((e) => setConsumersError(e.message));
   }, [selected]);
 
+  useEffect(() => {
+    if (!activeSource) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && closeMessages();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSource]);
+
   const inspect = (c: Consumer) => {
     setActiveConsumer(c.name);
     setActiveSource(c.name);
@@ -89,13 +114,21 @@ export function JetStreamPanel({ connected }: { connected: boolean }) {
     live.unsubscribe();
   };
 
-  if (!connected) return <Empty label="Connect to inspect JetStream streams." />;
+  if (!connected)
+    return (
+      <Empty icon="stack" label="Not connected" hint="Connect to inspect JetStream streams and consumers." />
+    );
 
   return (
-    <div className="js">
-      <div className="js__head">
+    <>
+      <div className="panel__head">
+        <Icon name="stack" weight="duotone" size={18} />
         <h3>Streams</h3>
-        <button onClick={refresh}>Refresh</button>
+        {streams && <span className="count">{streams.length}</span>}
+        <span className="spacer" />
+        <button className="btn btn--sm" onClick={refresh}>
+          <Icon name="arrows-clockwise" /> Refresh
+        </button>
       </div>
 
       {recentStreams.length > 0 && (
@@ -113,139 +146,201 @@ export function JetStreamPanel({ connected }: { connected: boolean }) {
 
       {loading && <Loading />}
       {error && <ErrorState message={error} />}
-      {streams && streams.length === 0 && <Empty label="No streams in this context." />}
+      {streams && streams.length === 0 && (
+        <Empty icon="stack" label="No streams" hint="No JetStream streams exist in this context." />
+      )}
 
       {streams && streams.length > 0 && (
-        <table className="js__table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Subjects</th>
-              <th>Messages</th>
-              <th>Bytes</th>
-              <th>Last</th>
-              <th>Config</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {streams.map((s) => (
-              <tr
-                key={s.name}
-                className={selected === s.name ? "js__row--active" : ""}
-                onClick={() => select(s.name)}
-              >
-                <td>{s.name}</td>
-                <td className="js__subjects">{s.subjects.join(", ")}</td>
-                <td>{s.messages}</td>
-                <td>{s.bytes}</td>
-                <td>{s.lastTs ? new Date(s.lastTs).toLocaleString() : "—"}</td>
-                <td className="js__subjects">
-                  {s.retention} · {s.storage} · r{s.replicas} · {formatLimit(s.maxMessages)} msgs · {formatLimit(s.maxBytes)} B
-                </td>
-                <td>
-                  <button onClick={(e) => { e.stopPropagation(); inspectStream(s); }}>Messages</button>
-                </td>
+        <div className="tablewrap" style={{ flex: "0 0 auto", maxHeight: "38%" }}>
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th>Stream</th>
+                <th>Subjects</th>
+                <th className="num">Messages</th>
+                <th className="num">Size</th>
+                <th className="num">Last seq</th>
+                <th>Config</th>
+                <th></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {streams.map((s) => (
+                <tr
+                  key={s.name}
+                  className={selected === s.name ? "is-active" : ""}
+                  onClick={() => select(s.name)}
+                >
+                  <td>
+                    <span className="stream-name name">
+                      <Icon name="stack-simple" /> {s.name}
+                    </span>
+                  </td>
+                  <td className="subjects" title={s.subjects.join(", ")}>
+                    {s.subjects.join(", ")}
+                  </td>
+                  <td className="num">{fmtInt(s.messages)}</td>
+                  <td className="num num--muted">{fmtBytes(s.bytes)}</td>
+                  <td className="num num--muted">{fmtInt(s.lastSeq)}</td>
+                  <td className="subjects">
+                    {s.retention} · {s.storage} · r{s.replicas} · {formatLimit(s.maxMessages)} msgs ·{" "}
+                    {formatLimit(s.maxBytes)} B
+                  </td>
+                  <td>
+                    <button
+                      className="btn btn--sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        inspectStream(s);
+                      }}
+                    >
+                      <Icon name="arrow-line-up-right" /> Messages
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {selected && (
-        <div className="js__consumers">
-          <h3>Consumers · {selected}</h3>
+        <>
+          <div className="panel__head" style={{ marginTop: "var(--sp-1)" }}>
+            <Icon name="users-three" weight="duotone" size={17} />
+            <h3>Consumers</h3>
+            <span className="count">· {selected}</span>
+          </div>
           {consumersError && <ErrorState message={consumersError} />}
           {!consumers && !consumersError && <Loading />}
-          {consumers && consumers.length === 0 && <Empty label="No consumers on this stream." />}
-          {consumers && consumers.length > 0 && (
-            <table className="js__table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Durable</th>
-                  <th>Kind</th>
-                  <th>Pending</th>
-                  <th>Ack pending</th>
-                  <th>Redelivered</th>
-                  <th>Last seq</th>
-                  <th>State</th>
-                  <th>Issues</th>
-                </tr>
-              </thead>
-              <tbody>
-                {consumers.map((c) => (
-                  <tr
-                    key={c.name}
-                    className={activeConsumer === c.name ? "js__row--active" : ""}
-                    onClick={() => inspect(c)}
-                  >
-                    <td>{c.name}</td>
-                    <td>{c.durableName ?? "—"}</td>
-                    <td>{c.deliveryKind}</td>
-                    <td>{c.pending}</td>
-                    <td>{c.ackPending}</td>
-                    <td>{c.redelivered}</td>
-                    <td>{c.lastDelivered ?? "—"}</td>
-                    <td>{c.state}</td>
-                    <td>{c.errors.length ? c.errors.join(", ") : "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          {consumers && consumers.length === 0 && (
+            <Empty icon="users-three" label="No consumers" hint={`No consumers are bound to ${selected}.`} />
           )}
-        </div>
+          {consumers && consumers.length > 0 && (
+            <div className="tablewrap" style={{ flex: 1 }}>
+              <table className="tbl">
+                <thead>
+                  <tr>
+                    <th>Consumer</th>
+                    <th>Durable</th>
+                    <th>Kind</th>
+                    <th className="num">Pending</th>
+                    <th className="num">Ack pending</th>
+                    <th className="num">Redelivered</th>
+                    <th>Health</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {consumers.map((c) => (
+                    <tr
+                      key={c.name}
+                      className={activeConsumer === c.name ? "is-active" : ""}
+                      onClick={() => inspect(c)}
+                    >
+                      <td>
+                        <span className="name mono" style={{ fontSize: "var(--fs-sm)" }}>
+                          {c.name}
+                        </span>
+                        {!c.durableName && <Badge>ephemeral</Badge>}
+                      </td>
+                      <td className="num--muted">{c.durableName ?? "—"}</td>
+                      <td>
+                        <Badge>{c.deliveryKind}</Badge>
+                      </td>
+                      <td className="num">{fmtInt(c.pending)}</td>
+                      <td className={"num" + (c.ackPending > 0 ? " num--warn" : " num--muted")}>
+                        {fmtInt(c.ackPending)}
+                      </td>
+                      <td className={"num" + (c.redelivered > 0 ? " num--warn" : " num--muted")}>
+                        {fmtInt(c.redelivered)}
+                      </td>
+                      <td>
+                        <ConsumerHealth c={c} />
+                      </td>
+                      <td>
+                        <button
+                          className="btn btn--sm btn--icon"
+                          title="Inspect messages"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            inspect(c);
+                          }}
+                        >
+                          <Icon name="arrow-line-up-right" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
 
       {activeSource && (
-        <div className="overlay" role="dialog" aria-modal="true">
-          <div className="overlay__head">
-            <div className="overlay__title">
-              <h3>{activeSource}</h3>
-              <span className="overlay__sub">{selected}</span>
-              <span className={`core__ws core__ws--${live.status}`}>
-                {live.stream ? "live" : "stopped"} · {filtered.length}/{live.messages.length} msg
+        <>
+          <div className="scrim" onClick={closeMessages} />
+          <div className="overlay" role="dialog" aria-modal="true" aria-label={`Source ${activeSource}`}>
+            <div className="overlay__head">
+              <div className="overlay__title">
+                <h3>{activeSource}</h3>
+                {selected && (
+                  <span className="overlay__breadcrumb">
+                    <Icon name="stack-simple" /> {selected}
+                  </span>
+                )}
+              </div>
+              <span className={"overlay__live" + (live.stream ? " is-open" : "")}>
+                <span className="dot" />
+                {live.stream ? "live" : "stopped"} · {fmtInt(filtered.length)}/{fmtInt(live.messages.length)} msg
               </span>
+              <div className="overlay__actions">
+                {live.messages.length > 0 && (
+                  <button className="btn btn--sm btn--ghost" onClick={live.clear}>
+                    <Icon name="eraser" /> Clear
+                  </button>
+                )}
+                <button className="btn btn--sm btn--danger" onClick={closeMessages}>
+                  <Icon name="x" /> Close
+                </button>
+              </div>
             </div>
-            <div className="overlay__actions">
-              {live.messages.length > 0 && <button onClick={live.clear}>Clear</button>}
-              <button className="overlay__close" onClick={closeMessages}>
-                ✕ Close
-              </button>
+            {live.error && <ErrorState message={live.error} />}
+            <div className="overlay__filters">
+              <MessageFilters messages={live.messages} value={filters} onChange={setFilters} />
+            </div>
+            <div className="overlay__body">
+              <SplitWorkspace
+                viewerEmpty={!selectedMsg}
+                list={
+                  filtered.length === 0 ? (
+                    <Empty
+                      icon="tray"
+                      label={live.messages.length ? "No matches" : "No stored messages"}
+                      hint={
+                        live.messages.length
+                          ? "No messages match the filters."
+                          : "This source has no buffered messages yet."
+                      }
+                    />
+                  ) : (
+                    <MessageList
+                      messages={filtered}
+                      selectedId={selectedMsg?.id}
+                      onSelect={setSelectedMsg}
+                      showSeq
+                    />
+                  )
+                }
+                viewer={<MessageViewer message={selectedMsg} fullscreenable />}
+              />
             </div>
           </div>
-          {live.error && <ErrorState message={live.error} />}
-          <MessageFilters messages={live.messages} value={filters} onChange={setFilters} />
-          <div className="overlay__body">
-            <div className="overlay__list">
-              {filtered.length === 0 ? (
-                <Empty
-                  label={live.messages.length ? "No messages match the filters." : "No stored messages yet…"}
-                />
-              ) : (
-                <ul>
-                  {filtered.map((m) => (
-                    <li
-                      key={m.id}
-                      className={`msg ${selectedMsg?.id === m.id ? "msg--active" : ""}`}
-                      onClick={() => setSelectedMsg(m)}
-                    >
-                      <span className="msg__time">{new Date(m.timestamp).toLocaleTimeString()}</span>
-                      {m.seq != null && <span className="msg__seq">#{m.seq}</span>}
-                      <span className="msg__subject">{m.subject}</span>
-                      <span className="msg__preview">{m.data.slice(0, 80)}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-            <div className="overlay__viewer">
-              <MessageViewer message={selectedMsg} />
-            </div>
-          </div>
-        </div>
+        </>
       )}
-    </div>
+    </>
   );
 }
 

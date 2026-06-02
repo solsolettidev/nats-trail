@@ -57,6 +57,11 @@ There are no automated tests in v0 (tests are added only when explicitly request
 - Conventional Commits, small and focused.
 - Keep reusable logic in `core`; the server and UI are thin adapters.
 - Never commit secrets or `.env`; contexts with credentials live in `data/` (git-ignored).
+- UI styling: a single `packages/ui/src/styles.css` driven by CSS variables (4px spacing
+  scale, type scale, reusable primitives `.btn` / `.input` / `.badge` / `.tbl` / `.filters`
+  / `.list` / `.msg` / `.viewer` / `.jt` / `.overlay` / `.state`). No CSS framework.
+- Icons: Phosphor (`@phosphor-icons/web`) loaded via CDN `<link>` in `index.html`; use the
+  shared `Icon` helper in `components/ui.tsx`.
 
 ## Environment variables (server)
 

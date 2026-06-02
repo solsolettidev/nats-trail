@@ -1,7 +1,15 @@
 import { useEffect, useState } from "react";
 import { api, formatPayload, type Message } from "../api.js";
+import { Badge, Icon, fmtBytes, fmtInt, fmtTime, highlight } from "./ui.js";
+import { Empty } from "./states.js";
 
-export function MessageViewer({ message }: { message: Message | null }) {
+export function MessageViewer({
+  message,
+  fullscreenable,
+}: {
+  message: Message | null;
+  fullscreenable?: boolean;
+}) {
   const [copied, setCopied] = useState<string | null>(null);
   const [mode, setMode] = useState<"tree" | "raw">("tree");
   const [full, setFull] = useState(false);
@@ -26,47 +34,79 @@ export function MessageViewer({ message }: { message: Message | null }) {
     api.savePreferences({ messageViewerMode: next }).catch(() => {});
   };
 
-  if (!message) return <div className="state state--empty">Select a message</div>;
+  if (!message)
+    return (
+      <div className="viewer">
+        <Empty
+          icon="cursor-click"
+          label="No message selected"
+          hint="Pick a message from the list to inspect its payload, headers, and metadata."
+        />
+      </div>
+    );
 
   const showTree = mode === "tree" && message.isJson;
+  const q = query.trim().toLowerCase();
 
   return (
-    <div className={`viewer ${full ? "viewer--full" : ""}`}>
+    <div className={"viewer" + (full ? " viewer--full" : "")}>
       <div className="viewer__head">
         <div className="viewer__meta">
-          <span className="viewer__subject">{message.subject}</span>
+          <span className="viewer__subject" title={message.subject}>
+            {message.subject}
+          </span>
           <span className="viewer__badges">
-            <span className={`tag tag--${message.isJson ? "json" : "text"}`}>
-              {message.isJson ? "JSON" : "text"}
-            </span>
-            <span className="tag">{message.size} B</span>
-            {message.seq != null && <span className="tag">seq {message.seq}</span>}
+            <Badge variant={message.isJson ? "json" : "text"}>{message.isJson ? "JSON" : "TEXT"}</Badge>
+            <Badge>{fmtBytes(message.size)}</Badge>
+            {message.seq != null && <Badge variant="seq">seq {fmtInt(message.seq)}</Badge>}
+            <Badge>{fmtTime(message.timestamp)}</Badge>
           </span>
         </div>
         <div className="viewer__actions">
           {message.isJson && (
-            <button onClick={toggleMode}>
-              {mode === "tree" ? "Raw" : "Tree"}
+            <div className="seg" role="tablist" aria-label="View mode">
+              <button aria-pressed={mode === "tree"} onClick={() => mode !== "tree" && toggleMode()}>
+                <Icon name="tree-view" /> Tree
+              </button>
+              <button aria-pressed={mode === "raw"} onClick={() => mode !== "raw" && toggleMode()}>
+                <Icon name="code" /> Raw
+              </button>
+            </div>
+          )}
+          {fullscreenable && (
+            <button
+              className="btn btn--sm btn--icon"
+              title={full ? "Exit fullscreen" : "Fullscreen"}
+              onClick={() => setFull((f) => !f)}
+            >
+              <Icon name={full ? "corners-in" : "corners-out"} />
             </button>
           )}
-          <button onClick={() => setFull((f) => !f)}>{full ? "Exit" : "Fullscreen"}</button>
-          <button onClick={() => copy(text, "all")}>{copied === "all" ? "Copied" : "Copy"}</button>
+          <button className="btn btn--sm" onClick={() => copy(text, "all")}>
+            <Icon name={copied === "all" ? "check" : "copy"} /> {copied === "all" ? "Copied" : "Copy"}
+          </button>
         </div>
       </div>
 
-      <input
-        className="viewer__search"
-        type="search"
-        placeholder="Search in payload…"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-      />
+      <div className="viewer__toolbar">
+        <div className="field">
+          <Icon name="magnifying-glass" />
+          <input
+            className="input"
+            type="search"
+            placeholder={showTree ? "Filter keys & values…" : "Search lines…"}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
+        {showTree && <span className="viewer__matchcount">click a key to copy its path</span>}
+      </div>
 
       <div className="viewer__body">
         {showTree ? (
-          <JsonTree value={message.json} query={query.trim().toLowerCase()} onCopy={copy} copied={copied} />
+          <JsonTree value={message.json} query={q} onCopy={copy} copied={copied} />
         ) : (
-          <Raw text={text} query={query.trim().toLowerCase()} />
+          <Raw text={text} query={q} />
         )}
       </div>
     </div>
@@ -76,7 +116,14 @@ export function MessageViewer({ message }: { message: Message | null }) {
 function Raw({ text, query }: { text: string; query: string }) {
   if (!query) return <pre className="viewer__raw">{text}</pre>;
   const lines = text.split("\n").filter((l) => l.toLowerCase().includes(query));
-  return <pre className="viewer__raw">{lines.length ? lines.join("\n") : "No matches."}</pre>;
+  if (!lines.length) return <div className="raw__empty">No lines match “{query}”.</div>;
+  return (
+    <pre className="viewer__raw">
+      {lines.map((l, i) => (
+        <div key={i}>{highlight(l, query)}</div>
+      ))}
+    </pre>
+  );
 }
 
 interface NodeProps {
@@ -101,15 +148,30 @@ function JsonNode({ k, value, path, query, onCopy, copied, depth }: NodeProps) {
     onCopy(path, `path:${path}`);
   };
 
+  const indent = (
+    <span className="jt__indent">
+      {Array.from({ length: depth }).map((_, i) => (
+        <span key={i} className="jt__guide" />
+      ))}
+    </span>
+  );
+  const copiedHere = copied === `path:${path}` && (
+    <span className="jt__copied">
+      <Icon name="check" /> copied
+    </span>
+  );
+
   if (!isObj) {
     return (
-      <div className="jt__row" style={{ paddingLeft: depth * 14 }}>
-        <span className="jt__key" title={`Copy path: ${path}`} onClick={copyPath}>
-          {k}
+      <div className="jt__row">
+        {indent}
+        <span className="jt__toggle" />
+        <span className="jt__key" title={`Copy path · ${path}`} onClick={copyPath}>
+          {highlight(k, query)}
         </span>
         <span className="jt__colon">:</span>
-        <span className={`jt__val jt__val--${typeof value}`}>{format(value)}</span>
-        {copied === `path:${path}` && <span className="jt__copied">path copied</span>}
+        <span className={`jt__val jt__val--${valKind(value)}`}>{highlight(format(value), query)}</span>
+        {copiedHere}
       </div>
     );
   }
@@ -121,13 +183,16 @@ function JsonNode({ k, value, path, query, onCopy, copied, depth }: NodeProps) {
 
   return (
     <div>
-      <div className="jt__row" style={{ paddingLeft: depth * 14 }} onClick={() => setOpen((o) => !o)}>
-        <span className="jt__toggle">{open2 ? "▾" : "▸"}</span>
-        <span className="jt__key" title={`Copy path: ${path}`} onClick={copyPath}>
-          {k}
+      <div className="jt__row jt__row--branch" onClick={() => setOpen((o) => !o)}>
+        {indent}
+        <span className="jt__toggle">
+          <Icon name={open2 ? "caret-down" : "caret-right"} weight="bold" />
+        </span>
+        <span className="jt__key" title={`Copy path · ${path}`} onClick={copyPath}>
+          {highlight(k, query)}
         </span>
         <span className="jt__meta">{Array.isArray(value) ? `[${entries.length}]` : `{${entries.length}}`}</span>
-        {copied === `path:${path}` && <span className="jt__copied">path copied</span>}
+        {copiedHere}
       </div>
       {open2 &&
         entries.map(([ck, cv]) => (
@@ -158,7 +223,7 @@ function JsonTree({
   copied: string | null;
 }) {
   if (value === null || typeof value !== "object") {
-    return <span className="jt__val">{format(value)}</span>;
+    return <span className={`jt__val jt__val--${valKind(value)}`}>{format(value)}</span>;
   }
   const entries = Array.isArray(value)
     ? value.map((v, i) => [String(i), v] as const)
@@ -176,7 +241,13 @@ function JsonTree({
 
 function format(value: unknown): string {
   if (typeof value === "string") return `"${value}"`;
+  if (value === null) return "null";
   return String(value);
+}
+
+function valKind(value: unknown): string {
+  if (value === null) return "null";
+  return typeof value;
 }
 
 /** True when the key, a primitive value, or any nested key/value contains the query. */
