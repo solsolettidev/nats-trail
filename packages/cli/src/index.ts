@@ -215,6 +215,8 @@ function printMcpDescribe(output: Output): void {
 async function runMcpTool(name: string | undefined, args: string[], output: Output): Promise<void> {
   if (!name) fail("Usage: nats-ui mcp run <tool-name> --limit <n>");
   const input = readNamedArgs(args);
+  const selectedContextId = loadPreferences().selectedContextId;
+  if (!input.contextId && selectedContextId) input.contextId = selectedContextId;
   const envelope = INTEGRATION_API
     ? await callIntegrationTool(INTEGRATION_API, name, input)
     : await executeMcpTool(name, input, { contexts: loadContexts(), filters: loadFilters() });
@@ -232,10 +234,15 @@ function readNamedArgs(args: string[]): Record<string, unknown> {
     if (!key.startsWith("--")) continue;
     const value = args[i + 1];
     if (!value || value.startsWith("--")) fail(`Missing value for ${key}`);
-    input[key.slice(2)] = key === "--limit" || key === "--seq" ? Number(value) : value;
+    const inputKey = toCamelCase(key.slice(2));
+    input[inputKey] = inputKey === "limit" || inputKey === "seq" ? Number(value) : value;
     i += 1;
   }
   return input;
+}
+
+function toCamelCase(value: string): string {
+  return value.replace(/-([a-z])/g, (_, char: string) => char.toUpperCase());
 }
 
 function loadContexts(): Context[] {
