@@ -106,6 +106,8 @@ with timestamp, origin, tool, context, result count and error count.
 
 The stdio MCP server exposes local-state tools directly. Live JetStream querying remains behind the
 API bridge adapter so credentials and active NATS connections stay in one process.
+When `NATS_TRAIL_API` is set, the stdio server forwards tool calls to the bridge Integration API
+so agents can query live JetStream without receiving connection secrets.
 
 ### Integration API (`packages/server`, planned)
 

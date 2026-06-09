@@ -72,4 +72,5 @@ There are no automated tests in v0 (tests are added only when explicitly request
 ```
 NATS_TRAIL_PORT   API bridge port (default 4000)
 NATS_TRAIL_DATA   data directory  (default ./data)
+NATS_TRAIL_API    MCP server bridge URL for live tools (example http://localhost:4000)
 ```

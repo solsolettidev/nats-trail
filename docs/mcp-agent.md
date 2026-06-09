@@ -24,6 +24,15 @@ The stdio MCP server exposes the same `natstrail.*` tool contracts. Local-state 
 return structured connection errors from the stdio server unless they are invoked through the API
 bridge Integration API, which owns the live NATS connection.
 
+To let the MCP server use the bridge's active NATS/JetStream connection, set `NATS_TRAIL_API`:
+
+```bash
+NATS_TRAIL_API=http://localhost:4000 npm run mcp
+```
+
+In that mode every `natstrail.*` tool call is forwarded to `/api/integration/tools/:name` and is
+audited by the bridge.
+
 ## Tools
 
 Initial tool contracts live in `packages/mcp`:
