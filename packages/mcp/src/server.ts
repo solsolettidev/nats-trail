@@ -4,6 +4,9 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprot
 import { executeMcpTool } from "./runtime.js";
 import { mcpTools } from "./tools.js";
 import { loadLocalContexts, loadLocalFilters } from "./local-data.js";
+import { callIntegrationTool } from "./integration-client.js";
+
+const integrationApi = process.env.NATS_TRAIL_API;
 
 const server = new Server(
   { name: "nats-trail", version: "0.0.0" },
@@ -23,10 +26,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const input = request.params.arguments && typeof request.params.arguments === "object"
     ? request.params.arguments as Record<string, unknown>
     : {};
-  const envelope = await executeMcpTool(request.params.name, input, {
-    contexts: loadLocalContexts(),
-    filters: loadLocalFilters(),
-  });
+  const envelope = integrationApi
+    ? await callIntegrationTool(integrationApi, request.params.name, input)
+    : await executeMcpTool(request.params.name, input, {
+      contexts: loadLocalContexts(),
+      filters: loadLocalFilters(),
+    });
   return {
     content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }],
     isError: envelope.errors.length > 0,
