@@ -29,6 +29,7 @@ npm run dev          # bridge (:4000) + UI (:5173) together
 npm run dev:server   # API bridge only
 npm run dev:ui       # UI only
 npm run cli -- help  # CLI only
+npm run mcp          # MCP stdio server
 ```
 
 The UI dev server proxies `/api` and `/ws` to the bridge at `:4000`.

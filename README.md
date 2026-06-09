@@ -67,6 +67,7 @@ npm run cli -- mcp tools --output json
 npm run cli -- context current --agent
 npm run cli -- mcp run natstrail.list_contexts --limit 50 --agent
 npm run cli -- mcp run natstrail.list_filters --limit 50 --agent
+npm run mcp
 ```
 
 See [`docs/cli.md`](docs/cli.md) and [`docs/mcp-agent.md`](docs/mcp-agent.md).

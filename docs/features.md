@@ -59,6 +59,7 @@ Every panel handles: loading, empty, error, connected and disconnected.
 - Supports text, JSON, NDJSON and `--agent` JSON envelope output for current commands.
 - Sanitizes contexts before printing so secrets are not exposed.
 - MCP package defines explicit read-only `natstrail.*` tool contracts with input/output schemas and timeouts.
+- MCP stdio server exposes tools through the MCP protocol for agent clients.
 - MCP runtime executes `natstrail.list_contexts`, `natstrail.list_streams`, `natstrail.get_stream_info`
 - Saved filters are persisted under `data/filters.json` and exposed through `/api/filters`.
 - MCP runtime executes `natstrail.list_contexts`, `natstrail.list_filters`, `natstrail.run_filter`,

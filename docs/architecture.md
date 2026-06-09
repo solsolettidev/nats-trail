@@ -104,6 +104,9 @@ instead of exposing raw NATS client objects.
 Every MCP tool execution is timeout-bounded. Integration API executions append a local audit entry
 with timestamp, origin, tool, context, result count and error count.
 
+The stdio MCP server exposes local-state tools directly. Live JetStream querying remains behind the
+API bridge adapter so credentials and active NATS connections stay in one process.
+
 ### Integration API (`packages/server`, planned)
 
 Read-only HTTP API over the same Query Engine for Sentry enrichment, dashboards and external

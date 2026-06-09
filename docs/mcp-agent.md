@@ -13,6 +13,17 @@ The preferred shape is an MCP server exposing explicit tools with names, metadat
 The CLI remains useful for humans and as a fallback, but MCP tools are safer and easier for models
 to call correctly.
 
+## Run Server
+
+```bash
+npm run mcp
+```
+
+The stdio MCP server exposes the same `natstrail.*` tool contracts. Local-state tools such as
+`natstrail.list_contexts` and `natstrail.list_filters` work directly. JetStream tools currently
+return structured connection errors from the stdio server unless they are invoked through the API
+bridge Integration API, which owns the live NATS connection.
+
 ## Tools
 
 Initial tool contracts live in `packages/mcp`:
