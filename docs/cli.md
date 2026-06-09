@@ -18,6 +18,12 @@ npm run cli -- mcp run natstrail.list_filters --limit 50 --agent
 JetStream MCP tools run through the API bridge Integration API because they need an active NATS
 connection. The local CLI runtime only executes tools that can use local state safely.
 
+Set `NATS_TRAIL_API` to forward `mcp run` calls to the bridge:
+
+```bash
+NATS_TRAIL_API=http://localhost:4000 npm run cli -- mcp run natstrail.list_streams --contextId local --limit 50 --agent
+```
+
 Agent message records are intentionally compact: subject, timestamp, stream/sequence, bounded
 payload, truncation flag, JSON when safe, and extracted request/correlation IDs.
 The MCP runtime enforces tool timeouts; Integration API calls are audited by the server.
