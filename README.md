@@ -67,6 +67,7 @@ npm run cli -- mcp tools --output json
 npm run cli -- context current --agent
 npm run cli -- mcp run natstrail.list_contexts --limit 50 --agent
 npm run cli -- mcp run natstrail.list_filters --limit 50 --agent
+NATS_TRAIL_API=http://localhost:4000 npm run cli -- trace --contextId local --requestId req-123 --limit 20 --agent
 npm run mcp
 NATS_TRAIL_API=http://localhost:4000 npm run mcp
 NATS_TRAIL_API=http://localhost:4000 npm run cli -- mcp run natstrail.list_streams --contextId local --limit 50 --agent
