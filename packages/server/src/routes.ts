@@ -10,6 +10,8 @@ import { executeMcpTool, mcpTools } from "@nats-trail/mcp";
 import { connectionManager } from "./connection.js";
 import {
   loadContexts,
+  appendAuditEntry,
+  loadAuditEntries,
   saveContexts,
   loadPreferences,
   savePreferences,
@@ -27,16 +29,30 @@ router.get("/integration/tools", (req, res) => {
   res.json(createQueryEnvelope({ query: { route: req.path }, results: mcpTools, limit: Number(req.query.limit) || 50 }));
 });
 
+router.get("/integration/audit", (req, res) => {
+  res.json(createQueryEnvelope({ query: { route: req.path }, results: loadAuditEntries(), limit: Number(req.query.limit) || 50 }));
+});
+
 router.post("/integration/tools/:name", async (req, res) => {
   const state = connectionManager.getState();
-  res.json(await executeMcpTool(req.params.name, req.body as Record<string, unknown>, {
+  const input = req.body as Record<string, unknown>;
+  const envelope = await executeMcpTool(req.params.name, input, {
     contexts: loadContexts(),
     activeContextId: state.contextId,
     listStreams: () => connectionManager.listStreams(),
     listConsumers: (stream) => connectionManager.listConsumers(stream),
     getStreamMessage: (stream, seq) => connectionManager.getStreamMessage(stream, seq),
     searchStreamMessages: (input) => connectionManager.searchStreamMessages(input),
-  }));
+  });
+  appendAuditEntry({
+    timestamp: Date.now(),
+    origin: "integration-api",
+    tool: req.params.name,
+    contextId: typeof input.contextId === "string" ? input.contextId : null,
+    resultCount: envelope.summary.returned,
+    errorCount: envelope.errors.length,
+  });
+  res.json(envelope);
 });
 
 // ---- Contexts -------------------------------------------------------------
