@@ -18,6 +18,8 @@ to call correctly.
 Initial tool contracts live in `packages/mcp`:
 
 - `natstrail.list_contexts`
+- `natstrail.list_filters`
+- `natstrail.run_filter`
 - `natstrail.list_streams`
 - `natstrail.get_stream_info`
 - `natstrail.list_consumers`
@@ -33,6 +35,8 @@ planned tools return structured `not implemented yet` errors instead of throwing
 Implemented runtime tools:
 
 - `natstrail.list_contexts`
+- `natstrail.list_filters`
+- `natstrail.run_filter` for filters that include a stream
 - `natstrail.list_streams` via the API bridge active connection
 - `natstrail.get_stream_info` via the API bridge active connection
 - `natstrail.list_consumers` via the API bridge active connection
@@ -81,6 +85,9 @@ that attach event context, message breadcrumbs and trace-related messages to err
 
 Initial read-only endpoints:
 
+- `GET /api/filters`
+- `POST /api/filters`
+- `DELETE /api/filters/:id`
 - `GET /api/integration/tools?limit=50`
 - `GET /api/integration/audit?limit=50`
 - `POST /api/integration/tools/:name`

@@ -12,6 +12,7 @@ npm run cli -- context current --output json
 npm run cli -- mcp describe --output json
 npm run cli -- context current --agent
 npm run cli -- mcp run natstrail.list_contexts --limit 50 --agent
+npm run cli -- mcp run natstrail.list_filters --limit 50 --agent
 ```
 
 JetStream MCP tools run through the API bridge Integration API because they need an active NATS

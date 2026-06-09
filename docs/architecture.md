@@ -133,6 +133,9 @@ Local product state only — never business secrets beyond what a context needs 
 contexts, saved filters, recent messages, preferences, basic audit logs
 ```
 
+Saved filters are stored locally in `data/filters.json` and can be executed through MCP/runtime
+when they identify a stream to search.
+
 For v0 this is a JSON file under `data/` (git-ignored). If richer local persistence is needed
 later, the preferred choice is SQLite — the storage module is isolated so it can be swapped
 without touching core or the API surface.
