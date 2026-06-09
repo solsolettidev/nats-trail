@@ -5,10 +5,13 @@
   "description": "Visual tool to inspect and debug NATS and JetStream",
   "workspaces": [
     "packages/core",
+    "packages/cli",
+    "packages/mcp",
     "packages/server",
     "packages/ui"
   ],
   "scripts": {
+    "cli": "npm run start --workspace @nats-trail/cli --",
     "dev": "concurrently -n server,ui -c blue,magenta \"npm:dev:server\" \"npm:dev:ui\"",
     "dev:server": "npm run dev --workspace @nats-trail/server",
     "dev:ui": "npm run dev --workspace @nats-trail/ui",
