@@ -73,6 +73,24 @@ async function main(args: string[]): Promise<void> {
     return;
   }
 
+  if (command[0] === "messages" && command[1] === "search") {
+    await runMcpTool("natstrail.search_messages", command.slice(2), output);
+    return;
+  }
+
+  if (command[0] === "trace") {
+    const input = readNamedArgs(command.slice(1));
+    if (input.requestId) await runMcpTool("natstrail.trace_by_request_id", command.slice(1), output);
+    else if (input.correlationId) await runMcpTool("natstrail.trace_by_correlation_id", command.slice(1), output);
+    else fail("Usage: nats-ui trace --requestId <id> --contextId <id> --limit <n>");
+    return;
+  }
+
+  if (command[0] === "dlq" && command[1] === "search") {
+    await runMcpTool("natstrail.search_dlq", command.slice(2), output);
+    return;
+  }
+
   fail(`Unknown command: ${command.join(" ")}`);
 }
 
@@ -264,6 +282,9 @@ Commands:
   mcp tools                  List read-only MCP-friendly commands
   mcp describe               Describe agent response formats and safety
   mcp run <tool-name>        Run an MCP tool contract locally
+  messages search            Search JetStream messages through the Query Engine
+  trace                      Trace by --requestId or --correlationId
+  dlq search                 Search dead-letter messages
 
 Options:
   --output text|json|ndjson   Output format (default: text)
