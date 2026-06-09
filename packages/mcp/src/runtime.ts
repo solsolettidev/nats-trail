@@ -1,7 +1,9 @@
 import {
   createQueryEnvelope,
+  isDlqSubject,
   normalizeError,
   normalizeLimit,
+  parseDlqEvent,
   sanitizeContext,
   toAgentMessage,
   type AgentMessage,
@@ -11,6 +13,7 @@ import {
   type QueryEnvelope,
   type Stream,
 } from "@nats-trail/core";
+import { mcpTools } from "./tools.js";
 
 export interface McpRuntimeData {
   contexts: Context[];
@@ -21,7 +24,18 @@ export interface McpRuntimeData {
   searchStreamMessages?: (input: { stream: string; subject?: string; limit: number }) => Promise<Message[]>;
 }
 
+interface AgentDlqEvent {
+  message: AgentMessage;
+  originalSubject: string | null;
+  reason: string | null;
+}
+
 export async function executeMcpTool(name: string, input: Record<string, unknown>, data: McpRuntimeData): Promise<QueryEnvelope<unknown>> {
+  const timeoutMs = mcpTools.find((tool) => tool.name === name)?.timeoutMs ?? 5000;
+  return withTimeout(executeMcpToolInner(name, input, data), name, normalizeLimit(input.limit), timeoutMs);
+}
+
+async function executeMcpToolInner(name: string, input: Record<string, unknown>, data: McpRuntimeData): Promise<QueryEnvelope<unknown>> {
   const limit = normalizeLimit(input.limit);
   if (input.limit == null) {
     return createQueryEnvelope({
@@ -136,7 +150,57 @@ export async function executeMcpTool(name: string, input: Record<string, unknown
     }
   }
 
+  if (name === "natstrail.search_dlq") {
+    const error = validateConnectedContext(name, input, data);
+    if (error) return error;
+    if (!data.searchStreamMessages || !data.listStreams) return notImplemented(name, limit);
+    try {
+      const streams = await data.listStreams();
+      const found: AgentDlqEvent[] = [];
+      const subject = stringInput(input.subject);
+      for (const stream of streams) {
+        if (found.length >= limit) break;
+        const dlqSubjects = subject ? [subject] : stream.subjects.filter(isDlqSubject);
+        for (const dlqSubject of dlqSubjects) {
+          if (found.length >= limit) break;
+          const messages = await data.searchStreamMessages({ stream: stream.name, subject: dlqSubject, limit });
+          for (const message of messages) {
+            const event = parseDlqEvent(message);
+            found.push({
+              message: toAgentMessage(message, stream.name),
+              originalSubject: event.originalSubject,
+              reason: event.reason,
+            });
+            if (found.length >= limit) break;
+          }
+        }
+      }
+      return createQueryEnvelope({ query: { tool: name, contextId: input.contextId, subject }, results: found, limit });
+    } catch (err) {
+      return toolError(name, limit, err);
+    }
+  }
+
   return notImplemented(name, limit);
+}
+
+async function withTimeout(work: Promise<QueryEnvelope<unknown>>, name: string, limit: number, timeoutMs: number): Promise<QueryEnvelope<unknown>> {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const timeout = new Promise<QueryEnvelope<unknown>>((resolve) => {
+    timer = setTimeout(() => {
+      resolve(createQueryEnvelope({
+        query: { tool: name },
+        results: [],
+        limit,
+        errors: [{ code: "mcp.timeout", message: `Tool timed out after ${timeoutMs}ms`, retriable: true }],
+      }));
+    }, timeoutMs);
+  });
+  try {
+    return await Promise.race([work, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 function validateConnectedContext(name: string, input: Record<string, unknown>, data: McpRuntimeData): QueryEnvelope<unknown> | null {

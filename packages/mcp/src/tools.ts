@@ -35,7 +35,7 @@ export const mcpTools: McpToolDefinition[] = [
   tool("natstrail.search_messages", "Search bounded NATS/JetStream messages.", { contextId: { type: "string" }, stream: { type: "string" }, subject: { type: "string" }, requestId: { type: "string" }, correlationId: { type: "string" }, text: { type: "string" }, limit: limitProperty }, ["contextId", "stream", "limit"]),
   tool("natstrail.trace_by_request_id", "Trace messages by request_id.", { contextId: { type: "string" }, requestId: { type: "string" }, limit: limitProperty }),
   tool("natstrail.trace_by_correlation_id", "Trace messages by correlation_id.", { contextId: { type: "string" }, correlationId: { type: "string" }, limit: limitProperty }),
-  tool("natstrail.search_dlq", "Search dead-letter messages.", { contextId: { type: "string" }, subject: { type: "string" }, limit: limitProperty }),
+  tool("natstrail.search_dlq", "Search dead-letter messages.", { contextId: { type: "string" }, subject: { type: "string" }, limit: limitProperty }, ["contextId", "limit"]),
   tool("natstrail.get_message_detail", "Get a single message detail by locator.", withLimit({ contextId: { type: "string" }, stream: { type: "string" }, seq: { type: "integer" } })),
 ];
 
