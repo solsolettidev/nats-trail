@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@nats-trail/core": "*",
+    "@nats-trail/mcp": "*",
     "express": "^4.21.1",
     "nats": "^2.29.2",
     "ws": "^8.18.0"

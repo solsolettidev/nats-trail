@@ -1,10 +1,12 @@
 import { Router } from "express";
 import {
+  createQueryEnvelope,
   normalizeError,
   sanitizeContext,
   validateContext,
   type Context,
 } from "@nats-trail/core";
+import { executeMcpTool, mcpTools } from "@nats-trail/mcp";
 import { connectionManager } from "./connection.js";
 import {
   loadContexts,
@@ -17,6 +19,24 @@ export const router: Router = Router();
 
 router.get("/health", (_req, res) => {
   res.json({ ok: true });
+});
+
+// ---- Integration API -------------------------------------------------------
+
+router.get("/integration/tools", (req, res) => {
+  res.json(createQueryEnvelope({ query: { route: req.path }, results: mcpTools, limit: Number(req.query.limit) || 50 }));
+});
+
+router.post("/integration/tools/:name", async (req, res) => {
+  const state = connectionManager.getState();
+  res.json(await executeMcpTool(req.params.name, req.body as Record<string, unknown>, {
+    contexts: loadContexts(),
+    activeContextId: state.contextId,
+    listStreams: () => connectionManager.listStreams(),
+    listConsumers: (stream) => connectionManager.listConsumers(stream),
+    getStreamMessage: (stream, seq) => connectionManager.getStreamMessage(stream, seq),
+    searchStreamMessages: (input) => connectionManager.searchStreamMessages(input),
+  }));
 });
 
 // ---- Contexts -------------------------------------------------------------

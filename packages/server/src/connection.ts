@@ -8,11 +8,16 @@ import {
 import { readFileSync } from "node:fs";
 import {
   normalizeError,
+  parseMessage,
+  subjectMatches,
   type Context,
   type ConnectionState,
   type Stream,
   type Consumer,
+  type Message,
 } from "@nats-trail/core";
+
+const decoder = new TextDecoder();
 
 /**
  * Single active NATS connection for the process (v0). Owns connection state,
@@ -151,6 +156,26 @@ class ConnectionManager {
     return out;
   }
 
+  async getStreamMessage(stream: string, seq: number): Promise<Message | null> {
+    const jsm = await this.requireJsm();
+    const msg = await getDirectMessage(jsm, stream, seq);
+    return msg ? directToMessage(msg) : null;
+  }
+
+  async searchStreamMessages(input: { stream: string; subject?: string; limit: number }): Promise<Message[]> {
+    const streams = await this.listStreams();
+    const stream = streams.find((item) => item.name === input.stream);
+    if (!stream) return [];
+    const out: Message[] = [];
+    for (let seq = stream.lastSeq; seq >= stream.firstSeq && out.length < input.limit; seq--) {
+      const msg = await this.getStreamMessage(stream.name, seq).catch(() => null);
+      if (!msg) continue;
+      if (input.subject && !subjectMatches(input.subject, msg.subject)) continue;
+      out.push(msg);
+    }
+    return out;
+  }
+
   private async requireJsm(): Promise<JetStreamManager> {
     if (!this.nc || this.state.status !== "connected") {
       throw new Error("Not connected to NATS");
@@ -181,6 +206,32 @@ function toConnectionOptions(ctx: Context): ConnectionOptions {
     if (ctx.tls.serverName) (opts.tls as typeof opts.tls & { servername?: string }).servername = ctx.tls.serverName;
   }
   return opts;
+}
+
+interface DirectMessageLike {
+  subject: string;
+  data: Uint8Array;
+  seq: number;
+  time?: Date;
+  timestamp?: Date;
+  info?: { timestampNanos?: number };
+}
+
+async function getDirectMessage(jsm: JetStreamManager, stream: string, seq: number): Promise<DirectMessageLike | null> {
+  const streams = jsm.streams as unknown as {
+    getMessage: (stream: string, query: { seq: number }) => Promise<DirectMessageLike | null>;
+  };
+  return streams.getMessage(stream, { seq });
+}
+
+function directToMessage(msg: DirectMessageLike): Message {
+  return parseMessage({
+    subject: msg.subject,
+    data: decoder.decode(msg.data),
+    timestamp: msg.info?.timestampNanos ? Math.round(msg.info.timestampNanos / 1e6) : (msg.time ?? msg.timestamp ?? new Date()).getTime(),
+    size: msg.data.length,
+    seq: msg.seq,
+  });
 }
 
 function consumerIssues(ackPending: number, redelivered: number, replicaLag: boolean): string[] {
