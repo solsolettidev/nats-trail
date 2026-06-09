@@ -111,7 +111,11 @@ Initial read-only endpoints:
 - `GET /api/integration/tools?limit=50`
 - `GET /api/integration/audit?limit=50`
 - `POST /api/integration/tools/:name`
+- `POST /api/integration/enrich/sentry`
 
 JetStream tools require the requested `contextId` to match the bridge's active connected context.
 Message outputs are agent-friendly: payloads are bounded, JSON is omitted when the payload had to
 be truncated, and common `request_id` / `correlation_id` fields are extracted when present.
+
+Sentry enrichment accepts `contextId`, optional `requestId`, optional `correlationId` and `limit`.
+It returns a single envelope result containing trace envelopes and a DLQ envelope.

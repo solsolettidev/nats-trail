@@ -121,7 +121,11 @@ Current initial endpoints expose tool discovery and execution:
 GET  /api/integration/tools
 GET  /api/integration/audit
 POST /api/integration/tools/:name
+POST /api/integration/enrich/sentry
 ```
+
+The Sentry enrichment endpoint composes existing read-only tools instead of adding a separate NATS
+query path.
 
 ### NATS Core vs JetStream
 

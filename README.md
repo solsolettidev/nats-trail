@@ -74,7 +74,7 @@ NATS_TRAIL_API=http://localhost:4000 npm run mcp
 See [`docs/cli.md`](docs/cli.md) and [`docs/mcp-agent.md`](docs/mcp-agent.md).
 
 The read-only Integration API exposes `/api/integration/tools`, `/api/integration/tools/:name`
-and `/api/integration/audit` for external systems.
+`/api/integration/audit` and `/api/integration/enrich/sentry` for external systems.
 
 ## Development
 

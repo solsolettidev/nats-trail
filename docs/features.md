@@ -71,6 +71,8 @@ Every panel handles: loading, empty, error, connected and disconnected.
   extracted `request_id` / `correlation_id` when present.
 - MCP runtime enforces tool timeouts and Integration API writes local audit entries.
 - Integration API exposes read-only tool discovery and tool execution endpoints under `/api/integration`.
+- Integration API includes `POST /api/integration/enrich/sentry` to collect trace and DLQ context
+  for external error tools without exposing NATS credentials.
 
 ## Planned
 
