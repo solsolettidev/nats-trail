@@ -139,3 +139,38 @@ export interface NormalizedError {
   message: string;
   retriable: boolean;
 }
+
+export interface QueryWarning {
+  code: string;
+  message: string;
+}
+
+export interface QuerySummary {
+  returned: number;
+  limit: number;
+  truncated: boolean;
+}
+
+export interface QueryEnvelope<T> {
+  query: Record<string, unknown>;
+  summary: QuerySummary;
+  results: T[];
+  nextCursor: string | null;
+  warnings: QueryWarning[];
+  errors: NormalizedError[];
+}
+
+export interface AgentMessage {
+  id: string;
+  subject: string;
+  timestamp: number;
+  stream?: string;
+  seq?: number;
+  size: number;
+  isJson: boolean;
+  payload: string;
+  payloadTruncated: boolean;
+  json: unknown | null;
+  requestId: string | null;
+  correlationId: string | null;
+}
