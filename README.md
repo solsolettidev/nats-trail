@@ -4,9 +4,8 @@ Visual tool to inspect and debug **NATS Core** and **JetStream**. Think of it as
 "Swagger for messaging systems": connect to a context, subscribe to subjects live,
 read messages with JSON pretty print, and browse streams and consumers.
 
-> **Status:** v1 — UI + API bridge + core. CLI and MCP/agent layers come later (see
-> `nats-ui-v2.md`), but the architecture already separates a reusable core so those
-> interfaces can be added without duplicating logic.
+> **Status:** v2 started — v1 UI + API bridge + core are complete. v2 is centered on a
+> shared Query Engine, explicit MCP tools, a read-only Integration API and a CLI fallback.
 
 ## Architecture
 
@@ -19,6 +18,8 @@ UI  ->  API bridge  ->  Core  ->  NATS / JetStream
   HTTP/WS endpoints, normalizes errors, enforces limits, protects credentials.
 - **Core** (`packages/core`): reusable product logic shared by UI, and later CLI and MCP —
   message parsing, payload formatting, filters, context validation, error normalization.
+- **CLI** (`packages/cli`): v2 command-line interface over shared local state and core logic.
+- **MCP** (`packages/mcp`): explicit read-only tool contracts for agents.
 
 See [`docs/architecture.md`](docs/architecture.md) for the full rationale.
 
@@ -55,6 +56,19 @@ to the bridge, so you only open the UI URL.
 - Local persistence of contexts and preferences
 
 See [`docs/features.md`](docs/features.md).
+
+## v2 Interfaces
+
+```bash
+npm run cli -- contexts list
+npm run cli -- context use local
+npm run cli -- context current --output json
+npm run cli -- mcp tools --output json
+npm run cli -- context current --agent
+npm run cli -- mcp run natstrail.list_contexts --limit 50 --agent
+```
+
+See [`docs/cli.md`](docs/cli.md) and [`docs/mcp-agent.md`](docs/mcp-agent.md).
 
 ## Development
 

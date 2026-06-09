@@ -1,18 +1,19 @@
 # Architecture
 
-NATS Trail is designed as a **product with three interfaces over a single core**, not as a
+NATS Trail is designed as a **product with multiple interfaces over a single core**, not as a
 standalone UI:
 
 ```
-1. UI for humans          (v0, this repo)
-2. CLI for automation     (future, see nats-ui-v2.md)
-3. MCP / agent layer      (future)
+1. UI for humans          (v1 complete)
+2. CLI for humans/fallback (v2 started, see nats-ui-v2.md)
+3. MCP / agent tools      (v2 started)
+4. Integration API        (planned)
 ```
 
 The guiding rule:
 
 ```
-UI, CLI and MCP are interfaces over the same core.
+UI, CLI, MCP and Integration API are interfaces over the same core.
 ```
 
 Not: each interface owning its own duplicated logic.
@@ -71,6 +72,48 @@ agent-safe output shaping
 
 Core has **no** dependency on Express, React or the NATS client. The server adapts the NATS
 client's raw data into core types; core decides how to parse, format and filter it.
+
+### Query Engine (`packages/core/src/query.ts`)
+
+The v2 center is the Query Engine contract, not CLI command execution. It defines stable
+agent-friendly envelopes, result limits and truncation helpers that every interface must share.
+
+Agent-facing responses use:
+
+```
+query, summary, results, nextCursor, warnings, errors
+```
+
+### CLI (`packages/cli`)
+
+Node + TypeScript command-line interface. The first v2 slice reuses UI-created local contexts
+and shared preferences without opening a NATS connection directly. It is a human terminal
+interface and fallback for automation. `--agent` forces valid JSON envelopes and must keep results
+bounded and sanitized.
+
+### MCP (`packages/mcp`)
+
+Explicit read-only tool contracts for agents. Tools are named `natstrail.*`, have strict input
+schemas, stable output envelopes, mandatory limits, timeouts and no destructive actions.
+The runtime accepts storage/connection data through adapters so MCP, CLI and HTTP can share the
+same Query Engine behavior.
+JetStream tools use the API bridge connection adapter and require the requested context to be the
+active connected context.
+Message query tools read bounded stream ranges and shape results as compact `AgentMessage` records
+instead of exposing raw NATS client objects.
+
+### Integration API (`packages/server`, planned)
+
+Read-only HTTP API over the same Query Engine for Sentry enrichment, dashboards and external
+systems. Sentry should not consume NATS directly; NATS Trail should enrich errors with relevant
+message context, breadcrumbs and trace-related events.
+
+Current initial endpoints expose tool discovery and execution:
+
+```
+GET  /api/integration/tools
+POST /api/integration/tools/:name
+```
 
 ### NATS Core vs JetStream
 

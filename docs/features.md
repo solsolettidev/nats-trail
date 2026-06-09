@@ -1,6 +1,6 @@
 # Features
 
-## v1 (current)
+## v1 (complete)
 
 ### Contexts
 - Create / list / delete contexts (local, dev, staging, prod, custom).
@@ -50,7 +50,25 @@ Every panel handles: loading, empty, error, connected and disconnected.
   recent + favorite subjects, recently inspected streams, DLQ subjects and viewer mode.
 - Core panel shows favorite/recent subject chips; JetStream shows recent streams.
 
-## Planned (later versions)
+## v2 (started)
+
+- Query Engine contracts in core: stable envelopes, mandatory limits, truncation helpers and structured errors.
+- CLI package (`@nats-trail/cli`) with `nats-ui` / `nats-trail` command names reserved.
+- Reuses UI-created local contexts from `data/contexts.json` or `NATS_TRAIL_DATA`.
+- Supports `contexts list`, `context use <id-or-name>` and `context current`.
+- Supports text, JSON, NDJSON and `--agent` JSON envelope output for current commands.
+- Sanitizes contexts before printing so secrets are not exposed.
+- MCP package defines explicit read-only `natstrail.*` tool contracts with input/output schemas and timeouts.
+- MCP runtime executes `natstrail.list_contexts`, `natstrail.list_streams`, `natstrail.get_stream_info`
+  `natstrail.list_consumers`, `natstrail.search_messages`, `natstrail.trace_by_request_id`,
+  `natstrail.trace_by_correlation_id` and `natstrail.get_message_detail` through shared envelopes.
+- Agent message output includes subject, timestamp, stream/sequence, payload truncation flags and
+  extracted `request_id` / `correlation_id` when present.
+- Integration API exposes read-only tool discovery and tool execution endpoints under `/api/integration`.
+
+## Planned
 
 - Saved filters, `request_id` / `correlation_id` tracing.
-- CLI (`nats-ui ...`) and MCP/agent layer over the same core (see `nats-ui-v2.md`).
+- Subject, stream, consumer and DLQ read queries from CLI.
+- MCP server implementation over the Query Engine (see `nats-ui-v2.md`).
+- Read-only Integration API for Sentry enrichment, dashboards and external systems.

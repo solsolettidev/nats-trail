@@ -5,6 +5,8 @@
 ```
 packages/
   core/     @nats-trail/core    pure product logic + types (no NATS/Express/React deps)
+  cli/      @nats-trail/cli     v2 command-line interface over shared local state
+  mcp/      @nats-trail/mcp     explicit read-only agent tool contracts
   server/   @nats-trail/server  API bridge: Express + ws + nats client
   ui/       @nats-trail/ui       React + Vite SPA
 docs/
@@ -26,6 +28,7 @@ npm install
 npm run dev          # bridge (:4000) + UI (:5173) together
 npm run dev:server   # API bridge only
 npm run dev:ui       # UI only
+npm run cli -- help  # CLI only
 ```
 
 The UI dev server proxies `/api` and `/ws` to the bridge at `:4000`.
