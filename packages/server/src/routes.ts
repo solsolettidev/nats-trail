@@ -37,17 +37,8 @@ router.get("/integration/audit", (req, res) => {
 });
 
 router.post("/integration/tools/:name", async (req, res) => {
-  const state = connectionManager.getState();
   const input = req.body as Record<string, unknown>;
-  const envelope = await executeMcpTool(req.params.name, input, {
-    contexts: loadContexts(),
-    filters: loadFilters(),
-    activeContextId: state.contextId,
-    listStreams: () => connectionManager.listStreams(),
-    listConsumers: (stream) => connectionManager.listConsumers(stream),
-    getStreamMessage: (stream, seq) => connectionManager.getStreamMessage(stream, seq),
-    searchStreamMessages: (input) => connectionManager.searchStreamMessages(input),
-  });
+  const envelope = await executeIntegrationTool(req.params.name, input);
   appendAuditEntry({
     timestamp: Date.now(),
     origin: "integration-api",
@@ -55,6 +46,33 @@ router.post("/integration/tools/:name", async (req, res) => {
     contextId: typeof input.contextId === "string" ? input.contextId : null,
     resultCount: envelope.summary.returned,
     errorCount: envelope.errors.length,
+  });
+  res.json(envelope);
+});
+
+router.post("/integration/enrich/sentry", async (req, res) => {
+  const input = req.body as Record<string, unknown>;
+  const limit = Number(input.limit) || 50;
+  const results = [];
+  if (typeof input.requestId === "string" && input.requestId) {
+    results.push(await executeIntegrationTool("natstrail.trace_by_request_id", { ...input, limit }));
+  }
+  if (typeof input.correlationId === "string" && input.correlationId) {
+    results.push(await executeIntegrationTool("natstrail.trace_by_correlation_id", { ...input, limit }));
+  }
+  results.push(await executeIntegrationTool("natstrail.search_dlq", { ...input, limit }));
+  const envelope = createQueryEnvelope({
+    query: { route: req.path, contextId: input.contextId, requestId: input.requestId, correlationId: input.correlationId },
+    results: [{ traces: results.filter((item) => item.query.tool !== "natstrail.search_dlq"), dlq: results.find((item) => item.query.tool === "natstrail.search_dlq") ?? null }],
+    limit: 1,
+  });
+  appendAuditEntry({
+    timestamp: Date.now(),
+    origin: "integration-api",
+    tool: "sentry.enrich",
+    contextId: typeof input.contextId === "string" ? input.contextId : null,
+    resultCount: envelope.summary.returned,
+    errorCount: results.reduce((count, item) => count + item.errors.length, 0),
   });
   res.json(envelope);
 });
@@ -179,4 +197,17 @@ function slug(s: string): string {
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "") || "context"
   );
+}
+
+function executeIntegrationTool(name: string, input: Record<string, unknown>) {
+  const state = connectionManager.getState();
+  return executeMcpTool(name, input, {
+    contexts: loadContexts(),
+    filters: loadFilters(),
+    activeContextId: state.contextId,
+    listStreams: () => connectionManager.listStreams(),
+    listConsumers: (stream) => connectionManager.listConsumers(stream),
+    getStreamMessage: (stream, seq) => connectionManager.getStreamMessage(stream, seq),
+    searchStreamMessages: (toolInput) => connectionManager.searchStreamMessages(toolInput),
+  });
 }
