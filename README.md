@@ -70,6 +70,9 @@ npm run cli -- mcp run natstrail.list_contexts --limit 50 --agent
 
 See [`docs/cli.md`](docs/cli.md) and [`docs/mcp-agent.md`](docs/mcp-agent.md).
 
+The read-only Integration API exposes `/api/integration/tools`, `/api/integration/tools/:name`
+and `/api/integration/audit` for external systems.
+
 ## Development
 
 See [`docs/development.md`](docs/development.md).

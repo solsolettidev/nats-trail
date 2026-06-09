@@ -101,6 +101,8 @@ JetStream tools use the API bridge connection adapter and require the requested 
 active connected context.
 Message query tools read bounded stream ranges and shape results as compact `AgentMessage` records
 instead of exposing raw NATS client objects.
+Every MCP tool execution is timeout-bounded. Integration API executions append a local audit entry
+with timestamp, origin, tool, context, result count and error count.
 
 ### Integration API (`packages/server`, planned)
 
@@ -112,6 +114,7 @@ Current initial endpoints expose tool discovery and execution:
 
 ```
 GET  /api/integration/tools
+GET  /api/integration/audit
 POST /api/integration/tools/:name
 ```
 

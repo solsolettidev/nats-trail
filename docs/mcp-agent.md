@@ -39,6 +39,7 @@ Implemented runtime tools:
 - `natstrail.search_messages` via direct JetStream reads from the active connection
 - `natstrail.trace_by_request_id` across streams visible to the active connection
 - `natstrail.trace_by_correlation_id` across streams visible to the active connection
+- `natstrail.search_dlq` across detected DLQ subjects or an explicit subject
 - `natstrail.get_message_detail` via stream + sequence direct lookup
 
 ## Output Contract
@@ -68,6 +69,7 @@ For streams, each NDJSON line should be independently useful:
 - Never expose secrets from contexts.
 - Always enforce limits.
 - Enforce timeouts.
+- Write audit entries for Integration API tool calls.
 - Prefer interpreted fields over raw protocol details.
 - Include normalized errors and truncation/cursor metadata.
 - Log agent-originated commands once audit storage exists.
@@ -80,6 +82,7 @@ that attach event context, message breadcrumbs and trace-related messages to err
 Initial read-only endpoints:
 
 - `GET /api/integration/tools?limit=50`
+- `GET /api/integration/audit?limit=50`
 - `POST /api/integration/tools/:name`
 
 JetStream tools require the requested `contextId` to match the bridge's active connected context.

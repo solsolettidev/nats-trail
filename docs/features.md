@@ -61,9 +61,11 @@ Every panel handles: loading, empty, error, connected and disconnected.
 - MCP package defines explicit read-only `natstrail.*` tool contracts with input/output schemas and timeouts.
 - MCP runtime executes `natstrail.list_contexts`, `natstrail.list_streams`, `natstrail.get_stream_info`
   `natstrail.list_consumers`, `natstrail.search_messages`, `natstrail.trace_by_request_id`,
-  `natstrail.trace_by_correlation_id` and `natstrail.get_message_detail` through shared envelopes.
+  `natstrail.trace_by_correlation_id`, `natstrail.search_dlq` and `natstrail.get_message_detail`
+  through shared envelopes.
 - Agent message output includes subject, timestamp, stream/sequence, payload truncation flags and
   extracted `request_id` / `correlation_id` when present.
+- MCP runtime enforces tool timeouts and Integration API writes local audit entries.
 - Integration API exposes read-only tool discovery and tool execution endpoints under `/api/integration`.
 
 ## Planned
