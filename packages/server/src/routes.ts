@@ -5,6 +5,7 @@ import {
   sanitizeContext,
   validateContext,
   type Context,
+  type Filter,
 } from "@nats-trail/core";
 import { executeMcpTool, mcpTools } from "@nats-trail/mcp";
 import { connectionManager } from "./connection.js";
@@ -12,7 +13,9 @@ import {
   loadContexts,
   appendAuditEntry,
   loadAuditEntries,
+  loadFilters,
   saveContexts,
+  saveFilters,
   loadPreferences,
   savePreferences,
 } from "./storage.js";
@@ -38,6 +41,7 @@ router.post("/integration/tools/:name", async (req, res) => {
   const input = req.body as Record<string, unknown>;
   const envelope = await executeMcpTool(req.params.name, input, {
     contexts: loadContexts(),
+    filters: loadFilters(),
     activeContextId: state.contextId,
     listStreams: () => connectionManager.listStreams(),
     listConsumers: (stream) => connectionManager.listConsumers(stream),
@@ -53,6 +57,36 @@ router.post("/integration/tools/:name", async (req, res) => {
     errorCount: envelope.errors.length,
   });
   res.json(envelope);
+});
+
+// ---- Saved filters ---------------------------------------------------------
+
+router.get("/filters", (_req, res) => {
+  res.json(loadFilters());
+});
+
+router.post("/filters", (req, res) => {
+  const body = req.body as Partial<Filter>;
+  if (!body.name?.trim()) return res.status(400).json({ error: normalizeError("filter name is required") });
+  const filters = loadFilters();
+  const id = body.id?.trim() || slug(body.name);
+  const filter: Filter = {
+    id,
+    name: body.name.trim(),
+    subject: body.subject?.trim() || undefined,
+    stream: body.stream?.trim() || undefined,
+    text: body.text?.trim() || undefined,
+    fromTs: body.fromTs,
+    toTs: body.toTs,
+    eventType: body.eventType?.trim() || undefined,
+  };
+  saveFilters(filters.filter((item) => item.id !== id).concat(filter));
+  res.status(201).json(filter);
+});
+
+router.delete("/filters/:id", (req, res) => {
+  saveFilters(loadFilters().filter((filter) => filter.id !== req.params.id));
+  res.json({ ok: true });
 });
 
 // ---- Contexts -------------------------------------------------------------

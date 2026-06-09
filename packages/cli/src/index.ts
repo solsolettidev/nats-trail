@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { createQueryEnvelope, sanitizeContext, type Context } from "@nats-trail/core";
+import { createQueryEnvelope, sanitizeContext, type Context, type Filter } from "@nats-trail/core";
 import { executeMcpTool, mcpTools } from "@nats-trail/mcp";
 
 type Output = "text" | "json" | "ndjson";
@@ -18,6 +18,7 @@ interface Preferences {
 const DATA_DIR = process.env.NATS_TRAIL_DATA ?? join(process.cwd(), "data");
 const CONTEXTS_FILE = join(DATA_DIR, "contexts.json");
 const PREFS_FILE = join(DATA_DIR, "preferences.json");
+const FILTERS_FILE = join(DATA_DIR, "filters.json");
 
 const DEFAULT_PREFS: Preferences = {
   selectedContextId: null,
@@ -195,7 +196,7 @@ function printMcpDescribe(output: Output): void {
 async function runMcpTool(name: string | undefined, args: string[], output: Output): Promise<void> {
   if (!name) fail("Usage: nats-ui mcp run <tool-name> --limit <n>");
   const input = readNamedArgs(args);
-  const envelope = await executeMcpTool(name, input, { contexts: loadContexts() });
+  const envelope = await executeMcpTool(name, input, { contexts: loadContexts(), filters: loadFilters() });
   if (output === "ndjson") {
     for (const result of envelope.results) printJsonLine({ type: "mcp_result", result });
     return;
@@ -218,6 +219,10 @@ function readNamedArgs(args: string[]): Record<string, unknown> {
 
 function loadContexts(): Context[] {
   return readJson<Context[]>(CONTEXTS_FILE, []);
+}
+
+function loadFilters(): Filter[] {
+  return readJson<Filter[]>(FILTERS_FILE, []);
 }
 
 function loadPreferences(): Preferences {

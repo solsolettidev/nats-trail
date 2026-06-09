@@ -1,6 +1,7 @@
 import {
   createQueryEnvelope,
   isDlqSubject,
+  matchFilter,
   normalizeError,
   normalizeLimit,
   parseDlqEvent,
@@ -9,6 +10,7 @@ import {
   type AgentMessage,
   type Context,
   type Consumer,
+  type Filter,
   type Message,
   type QueryEnvelope,
   type Stream,
@@ -17,6 +19,7 @@ import { mcpTools } from "./tools.js";
 
 export interface McpRuntimeData {
   contexts: Context[];
+  filters?: Filter[];
   activeContextId?: string | null;
   listStreams?: () => Promise<Stream[]>;
   listConsumers?: (stream: string) => Promise<Consumer[]>;
@@ -52,6 +55,32 @@ async function executeMcpToolInner(name: string, input: Record<string, unknown>,
       results: data.contexts.map(sanitizeContext),
       limit,
     });
+  }
+
+  if (name === "natstrail.list_filters") {
+    return createQueryEnvelope({
+      query: { tool: name },
+      results: data.filters ?? [],
+      limit,
+    });
+  }
+
+  if (name === "natstrail.run_filter") {
+    const error = validateConnectedContext(name, input, data);
+    if (error) return error;
+    if (!data.searchStreamMessages) return notImplemented(name, limit);
+    const filterName = stringInput(input.filter);
+    if (!filterName) return inputError(name, limit, "filter is required");
+    const filter = (data.filters ?? []).find((item) => item.id === filterName || item.name === filterName);
+    if (!filter) return inputError(name, limit, `filter not found: ${filterName}`);
+    if (!filter.stream) return inputError(name, limit, `filter requires a stream: ${filter.id}`);
+    try {
+      const messages = await data.searchStreamMessages({ stream: filter.stream, subject: filter.subject, limit });
+      const results = messages.filter((message) => matchFilter(filter, message)).map((message) => toAgentMessage(message, filter.stream));
+      return createQueryEnvelope({ query: { tool: name, contextId: input.contextId, filter: filter.id }, results, limit });
+    } catch (err) {
+      return toolError(name, limit, err);
+    }
   }
 
   if (name === "natstrail.list_streams") {

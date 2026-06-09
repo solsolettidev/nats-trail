@@ -1,10 +1,11 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import type { Context } from "@nats-trail/core";
+import type { Context, Filter } from "@nats-trail/core";
 
 const DATA_DIR = process.env.NATS_TRAIL_DATA ?? join(process.cwd(), "data");
 const CONTEXTS_FILE = join(DATA_DIR, "contexts.json");
 const PREFS_FILE = join(DATA_DIR, "preferences.json");
+const FILTERS_FILE = join(DATA_DIR, "filters.json");
 const AUDIT_FILE = join(DATA_DIR, "audit.json");
 const MAX_AUDIT_ENTRIES = 500;
 
@@ -61,6 +62,14 @@ export function loadContexts(): Context[] {
 
 export function saveContexts(contexts: Context[]): void {
   writeJson(CONTEXTS_FILE, contexts);
+}
+
+export function loadFilters(): Filter[] {
+  return readJson<Filter[]>(FILTERS_FILE, []);
+}
+
+export function saveFilters(filters: Filter[]): void {
+  writeJson(FILTERS_FILE, filters);
 }
 
 export function loadPreferences(): Preferences {
