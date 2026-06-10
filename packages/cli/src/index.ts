@@ -78,6 +78,16 @@ async function main(args: string[]): Promise<void> {
     return;
   }
 
+  if (command[0] === "filters" && command[1] === "list") {
+    await runMcpTool("natstrail.list_filters", command.slice(2), output);
+    return;
+  }
+
+  if (command[0] === "filter" && command[1] === "run") {
+    await runMcpTool("natstrail.run_filter", command.slice(2), output);
+    return;
+  }
+
   if (command[0] === "messages" && command[1] === "search") {
     await runMcpTool("natstrail.search_messages", command.slice(2), output);
     return;
@@ -324,6 +334,8 @@ Commands:
   mcp tools                  List read-only MCP-friendly commands
   mcp describe               Describe agent response formats and safety
   mcp run <tool-name>        Run an MCP tool contract locally
+  filters list               List saved filters
+  filter run                 Run a saved filter by --filter
   streams list               List JetStream streams
   stream info                Get one stream summary
   consumers list             List stream consumers
