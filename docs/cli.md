@@ -44,6 +44,7 @@ exists.
 Agent message records are intentionally compact: subject, timestamp, stream/sequence, bounded
 payload, truncation flag, JSON when safe, and extracted request/correlation IDs.
 The MCP runtime enforces tool timeouts; Integration API calls are audited by the server.
+When CLI forwards through `NATS_TRAIL_API`, audit entries use origin `cli`.
 
 The future installed binary name is `nats-ui` (`nats-trail` is also reserved).
 

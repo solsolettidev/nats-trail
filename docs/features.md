@@ -75,6 +75,7 @@ Every panel handles: loading, empty, error, connected and disconnected.
 - Agent message output includes subject, timestamp, stream/sequence, payload truncation flags and
   extracted `request_id` / `correlation_id` when present.
 - MCP runtime enforces tool timeouts and Integration API writes local audit entries.
+- Audit entries distinguish `cli`, `mcp`, direct `integration-api` and unknown origins.
 - Integration API exposes read-only tool discovery and tool execution endpoints under `/api/integration`.
 - Integration API includes `POST /api/integration/enrich/sentry` to collect trace and DLQ context
   for external error tools without exposing NATS credentials.

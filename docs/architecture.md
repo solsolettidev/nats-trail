@@ -105,6 +105,7 @@ Message query tools read bounded stream ranges and shape results as compact `Age
 instead of exposing raw NATS client objects.
 Every MCP tool execution is timeout-bounded. Integration API executions append a local audit entry
 with timestamp, origin, tool, context, result count and error count.
+Forwarded calls identify origin as `cli` or `mcp`; direct HTTP calls default to `integration-api`.
 
 The stdio MCP server exposes local-state tools directly. Live JetStream querying remains behind the
 API bridge adapter so credentials and active NATS connections stay in one process.

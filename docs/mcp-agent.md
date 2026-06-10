@@ -32,6 +32,7 @@ NATS_TRAIL_API=http://localhost:4000 npm run mcp
 
 In that mode every `natstrail.*` tool call is forwarded to `/api/integration/tools/:name` and is
 audited by the bridge.
+Forwarded MCP calls are audited with origin `mcp`; CLI forwarding uses origin `cli`.
 
 ## Tools
 
@@ -99,6 +100,7 @@ For streams, each NDJSON line should be independently useful:
 - Validate required fields, field types, numeric ranges and unknown fields before execution.
 - Enforce timeouts.
 - Write audit entries for Integration API tool calls.
+- Preserve caller origin in audit entries when provided by CLI or MCP.
 - Prefer interpreted fields over raw protocol details.
 - Include normalized errors and truncation/cursor metadata.
 - Log agent-originated commands once audit storage exists.
