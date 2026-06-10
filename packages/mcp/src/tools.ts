@@ -54,7 +54,7 @@ export function validateToolInput(name: string, input: Record<string, unknown>):
   const schema = tool.inputSchema as {
     required?: string[];
     additionalProperties?: boolean;
-    properties?: Record<string, { type?: string | string[] }>;
+    properties?: Record<string, { type?: string | string[]; minimum?: number; maximum?: number }>;
   };
   const errors: ToolInputError[] = [];
   const properties = schema.properties ?? {};
@@ -67,9 +67,18 @@ export function validateToolInput(name: string, input: Record<string, unknown>):
     }
   }
   for (const [key, value] of Object.entries(input)) {
-    const expected = properties[key]?.type;
-    if (!expected || value == null) continue;
-    if (!matchesSchemaType(value, expected)) errors.push({ code: "mcp.type", message: `${key} has invalid type` });
+    const property = properties[key];
+    if (!property || value == null) continue;
+    if (property.type && !matchesSchemaType(value, property.type)) {
+      errors.push({ code: "mcp.type", message: `${key} has invalid type` });
+      continue;
+    }
+    if (typeof value === "number" && property.minimum != null && value < property.minimum) {
+      errors.push({ code: "mcp.minimum", message: `${key} must be >= ${property.minimum}` });
+    }
+    if (typeof value === "number" && property.maximum != null && value > property.maximum) {
+      errors.push({ code: "mcp.maximum", message: `${key} must be <= ${property.maximum}` });
+    }
   }
   return errors;
 }
