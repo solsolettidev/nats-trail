@@ -126,6 +126,7 @@ POST /api/integration/enrich/sentry
 
 The Sentry enrichment endpoint composes existing read-only tools instead of adding a separate NATS
 query path.
+The same composition is exposed as `natstrail.enrich_sentry` for MCP and CLI callers.
 
 ### NATS Core vs JetStream
 

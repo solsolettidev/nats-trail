@@ -63,6 +63,7 @@ Every panel handles: loading, empty, error, connected and disconnected.
 - MCP stdio can forward tool calls to the bridge with `NATS_TRAIL_API` for live JetStream access.
 - CLI `mcp run` can also forward tool calls to the bridge with `NATS_TRAIL_API`.
 - CLI exposes human-friendly aliases for agent-safe message search, trace and DLQ search.
+- Sentry enrichment is exposed as both `natstrail.enrich_sentry` and `sentry enrich` in the CLI.
 - MCP runtime executes `natstrail.list_contexts`, `natstrail.list_streams`, `natstrail.get_stream_info`
 - Saved filters are persisted under `data/filters.json` and exposed through `/api/filters`.
 - MCP runtime executes `natstrail.list_contexts`, `natstrail.list_filters`, `natstrail.run_filter`,

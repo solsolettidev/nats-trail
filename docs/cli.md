@@ -16,6 +16,7 @@ npm run cli -- mcp run natstrail.list_filters --limit 50 --agent
 npm run cli -- messages search --context-id local --stream SOURCE_EVENTS --request-id req-123 --limit 20 --agent
 npm run cli -- trace --context-id local --request-id req-123 --limit 20 --agent
 npm run cli -- dlq search --context-id local --limit 20 --agent
+npm run cli -- sentry enrich --context-id local --request-id req-123 --limit 20 --agent
 ```
 
 JetStream MCP tools run through the API bridge Integration API because they need an active NATS
@@ -27,8 +28,8 @@ Set `NATS_TRAIL_API` to forward `mcp run` calls to the bridge:
 NATS_TRAIL_API=http://localhost:4000 npm run cli -- mcp run natstrail.list_streams --context-id local --limit 50 --agent
 ```
 
-The higher-level CLI aliases (`messages search`, `trace`, `dlq search`) use the same forwarding
-behavior and output envelopes.
+The higher-level CLI aliases (`messages search`, `trace`, `dlq search`, `sentry enrich`) use the
+same forwarding behavior and output envelopes.
 If `--context-id` is omitted, the CLI uses the selected context from shared preferences when one
 exists.
 

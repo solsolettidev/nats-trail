@@ -47,6 +47,7 @@ Initial tool contracts live in `packages/mcp`:
 - `natstrail.trace_by_request_id`
 - `natstrail.trace_by_correlation_id`
 - `natstrail.search_dlq`
+- `natstrail.enrich_sentry`
 - `natstrail.get_message_detail`
 
 `packages/mcp` now also exposes a small runtime executor. Implemented tools return real envelopes;
@@ -64,6 +65,7 @@ Implemented runtime tools:
 - `natstrail.trace_by_request_id` across streams visible to the active connection
 - `natstrail.trace_by_correlation_id` across streams visible to the active connection
 - `natstrail.search_dlq` across detected DLQ subjects or an explicit subject
+- `natstrail.enrich_sentry` as a composed trace + DLQ context envelope
 - `natstrail.get_message_detail` via stream + sequence direct lookup
 
 ## Output Contract
@@ -119,3 +121,4 @@ be truncated, and common `request_id` / `correlation_id` fields are extracted wh
 
 Sentry enrichment accepts `contextId`, optional `requestId`, optional `correlationId` and `limit`.
 It returns a single envelope result containing trace envelopes and a DLQ envelope.
+The endpoint delegates to the `natstrail.enrich_sentry` tool so MCP and HTTP return the same shape.
