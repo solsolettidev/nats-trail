@@ -21,12 +21,14 @@ export interface Preferences {
 
 export interface AuditEntry {
   timestamp: number;
-  origin: "integration-api" | "cli" | "mcp" | "unknown";
+  origin: AuditOrigin;
   tool: string;
   contextId: string | null;
   resultCount: number;
   errorCount: number;
 }
+
+export type AuditOrigin = "integration-api" | "cli" | "mcp" | "unknown";
 
 const DEFAULT_PREFS: Preferences = {
   selectedContextId: null,

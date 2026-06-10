@@ -258,7 +258,7 @@ async function runMcpTool(name: string | undefined, args: string[], output: Outp
   const selectedContextId = loadPreferences().selectedContextId;
   if (!input.contextId && selectedContextId) input.contextId = selectedContextId;
   const envelope = INTEGRATION_API
-    ? await callIntegrationTool(INTEGRATION_API, name, input)
+    ? await callIntegrationTool(INTEGRATION_API, name, input, "cli")
     : await executeMcpTool(name, input, { contexts: loadContexts(), filters: loadFilters(), connectionState: localConnectionState() });
   if (output === "ndjson") {
     for (const result of envelope.results) printJsonLine({ type: "mcp_result", result });

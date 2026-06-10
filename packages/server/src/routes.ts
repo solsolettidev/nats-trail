@@ -12,6 +12,7 @@ import { connectionManager } from "./connection.js";
 import {
   loadContexts,
   appendAuditEntry,
+  type AuditOrigin,
   loadAuditEntries,
   loadFilters,
   saveContexts,
@@ -41,7 +42,7 @@ router.post("/integration/tools/:name", async (req, res) => {
   const envelope = await executeIntegrationTool(req.params.name, input);
   appendAuditEntry({
     timestamp: Date.now(),
-    origin: "integration-api",
+    origin: readAuditOrigin(req.header("x-nats-trail-origin")),
     tool: req.params.name,
     contextId: typeof input.contextId === "string" ? input.contextId : null,
     resultCount: envelope.summary.returned,
@@ -55,7 +56,7 @@ router.post("/integration/enrich/sentry", async (req, res) => {
   const envelope = await executeIntegrationTool("natstrail.enrich_sentry", input);
   appendAuditEntry({
     timestamp: Date.now(),
-    origin: "integration-api",
+    origin: readAuditOrigin(req.header("x-nats-trail-origin")),
     tool: "sentry.enrich",
     contextId: typeof input.contextId === "string" ? input.contextId : null,
     resultCount: envelope.summary.returned,
@@ -198,4 +199,9 @@ function executeIntegrationTool(name: string, input: Record<string, unknown>) {
     getStreamMessage: (stream, seq) => connectionManager.getStreamMessage(stream, seq),
     searchStreamMessages: (toolInput) => connectionManager.searchStreamMessages(toolInput),
   });
+}
+
+function readAuditOrigin(value: string | undefined): AuditOrigin {
+  if (value === "cli" || value === "mcp" || value === "integration-api") return value;
+  return value ? "unknown" : "integration-api";
 }
