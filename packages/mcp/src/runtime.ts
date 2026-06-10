@@ -21,6 +21,7 @@ import { mcpTools, validateToolInput } from "./tools.js";
 export interface McpRuntimeData {
   contexts: Context[];
   filters?: Filter[];
+  auditEntries?: unknown[];
   connectionState?: ConnectionState;
   activeContextId?: string | null;
   listStreams?: () => Promise<Stream[]>;
@@ -73,6 +74,14 @@ async function executeMcpToolInner(name: string, input: Record<string, unknown>,
     return createQueryEnvelope({
       query: { tool: name },
       results: [data.connectionState ?? disconnectedState()],
+      limit,
+    });
+  }
+
+  if (name === "natstrail.list_audit") {
+    return createQueryEnvelope({
+      query: { tool: name },
+      results: data.auditEntries ?? [],
       limit,
     });
   }

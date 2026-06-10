@@ -63,6 +63,11 @@ async function main(args: string[]): Promise<void> {
     return;
   }
 
+  if (command[0] === "audit" && command[1] === "list") {
+    await runMcpTool("natstrail.list_audit", command.slice(2), output);
+    return;
+  }
+
   if (command[0] === "mcp" && command[1] === "tools") {
     printMcpTools(output);
     return;
@@ -259,7 +264,7 @@ async function runMcpTool(name: string | undefined, args: string[], output: Outp
   if (!input.contextId && selectedContextId) input.contextId = selectedContextId;
   const envelope = INTEGRATION_API
     ? await callIntegrationTool(INTEGRATION_API, name, input, "cli")
-    : await executeMcpTool(name, input, { contexts: loadContexts(), filters: loadFilters(), connectionState: localConnectionState() });
+    : await executeMcpTool(name, input, { contexts: loadContexts(), filters: loadFilters(), auditEntries: [], connectionState: localConnectionState() });
   if (output === "ndjson") {
     for (const result of envelope.results) printJsonLine({ type: "mcp_result", result });
     return;
@@ -331,6 +336,7 @@ Commands:
   context current            Show selected context
   context use <id-or-name>   Select a context for CLI usage
   connection status          Show bridge/local connection state
+  audit list                 List recent audit entries
   mcp tools                  List read-only MCP-friendly commands
   mcp describe               Describe agent response formats and safety
   mcp run <tool-name>        Run an MCP tool contract locally

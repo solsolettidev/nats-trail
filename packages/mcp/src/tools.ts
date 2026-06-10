@@ -35,6 +35,7 @@ const limitProperty = {
 export const mcpTools: McpToolDefinition[] = [
   tool("natstrail.list_contexts", "List sanitized configured contexts.", withLimit({})),
   tool("natstrail.get_connection_status", "Get the current bridge connection state.", withLimit({})),
+  tool("natstrail.list_audit", "List recent Integration API audit entries.", withLimit({})),
   tool("natstrail.list_filters", "List saved reusable filters.", withLimit({})),
   tool("natstrail.run_filter", "Run a saved filter by id or name.", { contextId: { type: "string" }, filter: { type: "string" }, limit: limitProperty }),
   tool("natstrail.list_streams", "List JetStream streams for a context.", { contextId: { type: "string" }, limit: limitProperty }),
