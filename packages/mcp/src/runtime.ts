@@ -15,7 +15,7 @@ import {
   type QueryEnvelope,
   type Stream,
 } from "@nats-trail/core";
-import { mcpTools } from "./tools.js";
+import { mcpTools, validateToolInput } from "./tools.js";
 
 export interface McpRuntimeData {
   contexts: Context[];
@@ -35,6 +35,16 @@ interface AgentDlqEvent {
 
 export async function executeMcpTool(name: string, input: Record<string, unknown>, data: McpRuntimeData): Promise<QueryEnvelope<unknown>> {
   const timeoutMs = mcpTools.find((tool) => tool.name === name)?.timeoutMs ?? 5000;
+  const validationErrors = validateToolInput(name, input);
+  if (validationErrors.length) {
+    const limit = normalizeLimit(input.limit);
+    return createQueryEnvelope({
+      query: { tool: name, limit },
+      results: [],
+      limit,
+      errors: validationErrors.map((error) => ({ ...error, retriable: false })),
+    });
+  }
   return withTimeout(executeMcpToolInner(name, input, data), name, normalizeLimit(input.limit), timeoutMs);
 }
 

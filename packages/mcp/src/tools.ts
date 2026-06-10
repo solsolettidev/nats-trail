@@ -7,6 +7,11 @@ export interface McpToolDefinition {
   timeoutMs: number;
 }
 
+export interface ToolInputError {
+  code: string;
+  message: string;
+}
+
 const envelopeSchema = {
   type: "object",
   required: ["query", "summary", "results", "nextCursor", "warnings", "errors"],
@@ -41,6 +46,42 @@ export const mcpTools: McpToolDefinition[] = [
   tool("natstrail.enrich_sentry", "Collect trace and DLQ context for a Sentry issue.", { contextId: { type: "string" }, requestId: { type: "string" }, correlationId: { type: "string" }, limit: limitProperty }, ["contextId", "limit"]),
   tool("natstrail.get_message_detail", "Get a single message detail by locator.", withLimit({ contextId: { type: "string" }, stream: { type: "string" }, seq: { type: "integer" } })),
 ];
+
+export function validateToolInput(name: string, input: Record<string, unknown>): ToolInputError[] {
+  const tool = mcpTools.find((item) => item.name === name);
+  if (!tool) return [{ code: "mcp.unknown_tool", message: `Unknown tool: ${name}` }];
+  const schema = tool.inputSchema as {
+    required?: string[];
+    additionalProperties?: boolean;
+    properties?: Record<string, { type?: string | string[] }>;
+  };
+  const errors: ToolInputError[] = [];
+  const properties = schema.properties ?? {};
+  for (const key of schema.required ?? []) {
+    if (input[key] == null) errors.push({ code: "mcp.required", message: `${key} is required` });
+  }
+  if (schema.additionalProperties === false) {
+    for (const key of Object.keys(input)) {
+      if (!properties[key]) errors.push({ code: "mcp.unknown_field", message: `Unknown field: ${key}` });
+    }
+  }
+  for (const [key, value] of Object.entries(input)) {
+    const expected = properties[key]?.type;
+    if (!expected || value == null) continue;
+    if (!matchesSchemaType(value, expected)) errors.push({ code: "mcp.type", message: `${key} has invalid type` });
+  }
+  return errors;
+}
+
+function matchesSchemaType(value: unknown, expected: string | string[]): boolean {
+  const types = Array.isArray(expected) ? expected : [expected];
+  return types.some((type) => {
+    if (type === "integer") return typeof value === "number" && Number.isInteger(value);
+    if (type === "array") return Array.isArray(value);
+    if (type === "null") return value === null;
+    return typeof value === type;
+  });
+}
 
 function tool(name: string, description: string, properties: Record<string, unknown>, required = Object.keys(properties)): McpToolDefinition {
   return {
