@@ -78,6 +78,26 @@ async function main(args: string[]): Promise<void> {
     return;
   }
 
+  if (command[0] === "streams" && command[1] === "list") {
+    await runMcpTool("natstrail.list_streams", command.slice(2), output);
+    return;
+  }
+
+  if (command[0] === "stream" && command[1] === "info") {
+    await runMcpTool("natstrail.get_stream_info", command.slice(2), output);
+    return;
+  }
+
+  if (command[0] === "consumers" && command[1] === "list") {
+    await runMcpTool("natstrail.list_consumers", command.slice(2), output);
+    return;
+  }
+
+  if (command[0] === "message" && command[1] === "detail") {
+    await runMcpTool("natstrail.get_message_detail", command.slice(2), output);
+    return;
+  }
+
   if (command[0] === "trace") {
     const input = readNamedArgs(command.slice(1));
     if (input.requestId) await runMcpTool("natstrail.trace_by_request_id", command.slice(1), output);
@@ -294,7 +314,11 @@ Commands:
   mcp tools                  List read-only MCP-friendly commands
   mcp describe               Describe agent response formats and safety
   mcp run <tool-name>        Run an MCP tool contract locally
+  streams list               List JetStream streams
+  stream info                Get one stream summary
+  consumers list             List stream consumers
   messages search            Search JetStream messages through the Query Engine
+  message detail             Get one stream message by --stream and --seq
   trace                      Trace by --requestId or --correlationId
   dlq search                 Search dead-letter messages
   sentry enrich              Collect trace and DLQ context for Sentry
