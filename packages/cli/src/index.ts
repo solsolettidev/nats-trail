@@ -91,6 +91,11 @@ async function main(args: string[]): Promise<void> {
     return;
   }
 
+  if (command[0] === "sentry" && command[1] === "enrich") {
+    await runMcpTool("natstrail.enrich_sentry", command.slice(2), output);
+    return;
+  }
+
   fail(`Unknown command: ${command.join(" ")}`);
 }
 
@@ -292,6 +297,7 @@ Commands:
   messages search            Search JetStream messages through the Query Engine
   trace                      Trace by --requestId or --correlationId
   dlq search                 Search dead-letter messages
+  sentry enrich              Collect trace and DLQ context for Sentry
 
 Options:
   --output text|json|ndjson   Output format (default: text)

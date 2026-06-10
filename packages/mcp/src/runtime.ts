@@ -210,6 +210,24 @@ async function executeMcpToolInner(name: string, input: Record<string, unknown>,
     }
   }
 
+  if (name === "natstrail.enrich_sentry") {
+    const error = validateConnectedContext(name, input, data);
+    if (error) return error;
+    const traces = [];
+    if (stringInput(input.requestId)) {
+      traces.push(await executeMcpToolInner("natstrail.trace_by_request_id", input, data));
+    }
+    if (stringInput(input.correlationId)) {
+      traces.push(await executeMcpToolInner("natstrail.trace_by_correlation_id", input, data));
+    }
+    const dlq = await executeMcpToolInner("natstrail.search_dlq", input, data);
+    return createQueryEnvelope({
+      query: { tool: name, contextId: input.contextId, requestId: input.requestId, correlationId: input.correlationId },
+      results: [{ traces, dlq }],
+      limit: 1,
+    });
+  }
+
   return notImplemented(name, limit);
 }
 
