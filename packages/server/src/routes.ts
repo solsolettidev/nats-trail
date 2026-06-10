@@ -191,6 +191,7 @@ function executeIntegrationTool(name: string, input: Record<string, unknown>) {
   return executeMcpTool(name, input, {
     contexts: loadContexts(),
     filters: loadFilters(),
+    connectionState: state,
     activeContextId: state.contextId,
     listStreams: () => connectionManager.listStreams(),
     listConsumers: (stream) => connectionManager.listConsumers(stream),

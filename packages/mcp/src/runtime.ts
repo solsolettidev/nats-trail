@@ -8,6 +8,7 @@ import {
   sanitizeContext,
   toAgentMessage,
   type AgentMessage,
+  type ConnectionState,
   type Context,
   type Consumer,
   type Filter,
@@ -20,6 +21,7 @@ import { mcpTools, validateToolInput } from "./tools.js";
 export interface McpRuntimeData {
   contexts: Context[];
   filters?: Filter[];
+  connectionState?: ConnectionState;
   activeContextId?: string | null;
   listStreams?: () => Promise<Stream[]>;
   listConsumers?: (stream: string) => Promise<Consumer[]>;
@@ -63,6 +65,14 @@ async function executeMcpToolInner(name: string, input: Record<string, unknown>,
     return createQueryEnvelope({
       query: { tool: name },
       results: data.contexts.map(sanitizeContext),
+      limit,
+    });
+  }
+
+  if (name === "natstrail.get_connection_status") {
+    return createQueryEnvelope({
+      query: { tool: name },
+      results: [data.connectionState ?? disconnectedState()],
       limit,
     });
   }
@@ -290,6 +300,10 @@ function notImplemented(name: string, limit: number): QueryEnvelope<unknown> {
 
 function toolError(name: string, limit: number, err: unknown): QueryEnvelope<unknown> {
   return createQueryEnvelope({ query: { tool: name }, results: [], limit, errors: [normalizeError(err)] });
+}
+
+function disconnectedState(): ConnectionState {
+  return { status: "disconnected", contextId: null, url: null, error: null, reconnects: 0 };
 }
 
 function stringInput(value: unknown): string | undefined {

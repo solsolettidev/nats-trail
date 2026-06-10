@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { createQueryEnvelope, sanitizeContext, type Context, type Filter } from "@nats-trail/core";
+import { createQueryEnvelope, sanitizeContext, type ConnectionState, type Context, type Filter } from "@nats-trail/core";
 import { callIntegrationTool, executeMcpTool, mcpTools } from "@nats-trail/mcp";
 
 type Output = "text" | "json" | "ndjson";
@@ -55,6 +55,11 @@ async function main(args: string[]): Promise<void> {
 
   if (command[0] === "context" && command[1] === "use") {
     useContext(command[2], output);
+    return;
+  }
+
+  if (command[0] === "connection" && command[1] === "status") {
+    await runMcpTool("natstrail.get_connection_status", command.slice(2), output);
     return;
   }
 
@@ -244,7 +249,7 @@ async function runMcpTool(name: string | undefined, args: string[], output: Outp
   if (!input.contextId && selectedContextId) input.contextId = selectedContextId;
   const envelope = INTEGRATION_API
     ? await callIntegrationTool(INTEGRATION_API, name, input)
-    : await executeMcpTool(name, input, { contexts: loadContexts(), filters: loadFilters() });
+    : await executeMcpTool(name, input, { contexts: loadContexts(), filters: loadFilters(), connectionState: localConnectionState() });
   if (output === "ndjson") {
     for (const result of envelope.results) printJsonLine({ type: "mcp_result", result });
     return;
@@ -282,6 +287,10 @@ function loadPreferences(): Preferences {
   return { ...DEFAULT_PREFS, ...readJson<Partial<Preferences>>(PREFS_FILE, {}) };
 }
 
+function localConnectionState(): ConnectionState {
+  return { status: "disconnected", contextId: loadPreferences().selectedContextId, url: null, error: null, reconnects: 0 };
+}
+
 function savePreferences(prefs: Preferences): void {
   if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
   writeFileSync(PREFS_FILE, JSON.stringify(prefs, null, 2), "utf8");
@@ -311,6 +320,7 @@ Commands:
   contexts list              List UI-configured contexts
   context current            Show selected context
   context use <id-or-name>   Select a context for CLI usage
+  connection status          Show bridge/local connection state
   mcp tools                  List read-only MCP-friendly commands
   mcp describe               Describe agent response formats and safety
   mcp run <tool-name>        Run an MCP tool contract locally
