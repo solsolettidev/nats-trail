@@ -59,12 +59,12 @@ Every panel handles: loading, empty, error, connected and disconnected.
 - Supports text, JSON, NDJSON and `--agent` JSON envelope output for current commands.
 - Sanitizes contexts before printing so secrets are not exposed.
 - MCP package defines explicit read-only `natstrail.*` tool contracts with input/output schemas and timeouts.
+- MCP runtime validates required fields, field types and unknown fields before execution.
 - MCP stdio server exposes tools through the MCP protocol for agent clients.
 - MCP stdio can forward tool calls to the bridge with `NATS_TRAIL_API` for live JetStream access.
 - CLI `mcp run` can also forward tool calls to the bridge with `NATS_TRAIL_API`.
 - CLI exposes human-friendly aliases for agent-safe message search, trace and DLQ search.
 - Sentry enrichment is exposed as both `natstrail.enrich_sentry` and `sentry enrich` in the CLI.
-- MCP runtime executes `natstrail.list_contexts`, `natstrail.list_streams`, `natstrail.get_stream_info`
 - Saved filters are persisted under `data/filters.json` and exposed through `/api/filters`.
 - MCP runtime executes `natstrail.list_contexts`, `natstrail.list_filters`, `natstrail.run_filter`,
   `natstrail.list_streams`, `natstrail.get_stream_info`, `natstrail.list_consumers`,
