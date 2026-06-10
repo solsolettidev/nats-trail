@@ -40,6 +40,7 @@ Initial tool contracts live in `packages/mcp`:
 
 - `natstrail.list_contexts`
 - `natstrail.get_connection_status`
+- `natstrail.list_audit`
 - `natstrail.list_filters`
 - `natstrail.run_filter`
 - `natstrail.list_streams`
@@ -59,6 +60,7 @@ Implemented runtime tools:
 
 - `natstrail.list_contexts`
 - `natstrail.get_connection_status`
+- `natstrail.list_audit`
 - `natstrail.list_filters`
 - `natstrail.run_filter` for filters that include a stream
 - `natstrail.list_streams` via the API bridge active connection

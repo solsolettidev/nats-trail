@@ -61,6 +61,7 @@ Every panel handles: loading, empty, error, connected and disconnected.
 - MCP package defines explicit read-only `natstrail.*` tool contracts with input/output schemas and timeouts.
 - MCP runtime validates required fields, field types, numeric ranges and unknown fields before execution.
 - MCP/CLI expose bridge connection status through `natstrail.get_connection_status`.
+- MCP/CLI expose recent audit entries through `natstrail.list_audit`.
 - MCP stdio server exposes tools through the MCP protocol for agent clients.
 - MCP stdio can forward tool calls to the bridge with `NATS_TRAIL_API` for live JetStream access.
 - CLI `mcp run` can also forward tool calls to the bridge with `NATS_TRAIL_API`.

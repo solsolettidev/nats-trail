@@ -12,6 +12,7 @@ npm run cli -- context current --output json
 npm run cli -- mcp describe --output json
 npm run cli -- context current --agent
 npm run cli -- connection status --limit 1 --agent
+npm run cli -- audit list --limit 50 --agent
 npm run cli -- mcp run natstrail.list_contexts --limit 50 --agent
 npm run cli -- mcp run natstrail.list_filters --limit 50 --agent
 npm run cli -- filters list --limit 50 --agent
@@ -35,7 +36,7 @@ Set `NATS_TRAIL_API` to forward `mcp run` calls to the bridge:
 NATS_TRAIL_API=http://localhost:4000 npm run cli -- mcp run natstrail.list_streams --context-id local --limit 50 --agent
 ```
 
-The higher-level CLI aliases (`connection status`, `filters list`, `filter run`, `streams list`,
+The higher-level CLI aliases (`connection status`, `audit list`, `filters list`, `filter run`, `streams list`,
 `stream info`, `consumers list`, `messages search`, `message detail`, `trace`, `dlq search`,
 `sentry enrich`) use the same forwarding behavior and output envelopes.
 If `--context-id` is omitted, the CLI uses the selected context from shared preferences when one
