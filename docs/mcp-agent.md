@@ -96,7 +96,7 @@ For streams, each NDJSON line should be independently useful:
 - Read-only by default.
 - Never expose secrets from contexts.
 - Always enforce limits.
-- Validate required fields, field types and unknown fields before execution.
+- Validate required fields, field types, numeric ranges and unknown fields before execution.
 - Enforce timeouts.
 - Write audit entries for Integration API tool calls.
 - Prefer interpreted fields over raw protocol details.

@@ -95,8 +95,8 @@ bounded and sanitized.
 
 Explicit read-only tool contracts for agents. Tools are named `natstrail.*`, have strict input
 schemas, stable output envelopes, mandatory limits, timeouts and no destructive actions.
-Runtime validation rejects unknown tools, missing required fields, invalid field types and extra
-properties before any NATS/JetStream adapter is called.
+Runtime validation rejects unknown tools, missing required fields, invalid field types, invalid
+numeric ranges and extra properties before any NATS/JetStream adapter is called.
 The runtime accepts storage/connection data through adapters so MCP, CLI and HTTP can share the
 same Query Engine behavior.
 JetStream tools use the API bridge connection adapter and require the requested context to be the
