@@ -160,6 +160,32 @@ export interface QueryEnvelope<T> {
   errors: NormalizedError[];
 }
 
+/** Bounded window query over one stream, shared by the server adapter and the MCP runtime. */
+export interface StreamQuery {
+  stream: string;
+  /** Server-side subject filter (wildcards allowed). */
+  subject?: string;
+  /** Maximum messages to return. */
+  limit: number;
+  /** Resume cursor: stream sequence to start scanning from. Wins over fromTs. */
+  startSeq?: number;
+  /** Window start in epoch milliseconds (server-side start time). */
+  fromTs?: number;
+  /** Window end in epoch milliseconds; scanning stops past it. */
+  toTs?: number;
+  /** Maximum messages examined before the query returns a cursor. */
+  maxScan?: number;
+}
+
+export interface StreamQueryPage {
+  messages: Message[];
+  /** Sequence to resume from when more messages may match, else null. */
+  nextCursor: string | null;
+  /** Messages examined by this query. */
+  scanned: number;
+  warnings: QueryWarning[];
+}
+
 export interface AgentMessage {
   id: string;
   subject: string;

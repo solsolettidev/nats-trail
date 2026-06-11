@@ -3,11 +3,26 @@ import type { AgentMessage, Message, NormalizedError, QueryEnvelope, QueryWarnin
 export const DEFAULT_QUERY_LIMIT = 50;
 export const MAX_QUERY_LIMIT = 200;
 export const DEFAULT_PAYLOAD_LIMIT = 4096;
+export const DEFAULT_MAX_SCAN = 10_000;
+export const MAX_SCAN = 100_000;
 
 export function normalizeLimit(value: unknown, fallback = DEFAULT_QUERY_LIMIT): number {
   const parsed = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
   return Math.min(Math.floor(parsed), MAX_QUERY_LIMIT);
+}
+
+export function normalizeScan(value: unknown, fallback = DEFAULT_MAX_SCAN): number {
+  const parsed = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.min(Math.floor(parsed), MAX_SCAN);
+}
+
+/** Parse a nextCursor value back into a stream sequence. */
+export function parseCursor(value: unknown): number | undefined {
+  const parsed = typeof value === "number" ? value : typeof value === "string" && value ? Number(value) : NaN;
+  if (!Number.isFinite(parsed) || parsed <= 0) return undefined;
+  return Math.floor(parsed);
 }
 
 export function truncateText(value: string, maxBytes = DEFAULT_PAYLOAD_LIMIT): { value: string; truncated: boolean } {
