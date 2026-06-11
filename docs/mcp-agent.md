@@ -66,10 +66,23 @@ Implemented runtime tools:
 - `natstrail.list_streams` via the API bridge active connection
 - `natstrail.get_stream_info` via the API bridge active connection
 - `natstrail.list_consumers` via the API bridge active connection
-- `natstrail.search_messages` via direct JetStream reads from the active connection
+- `natstrail.search_messages` via bounded ephemeral-consumer stream scans
 - `natstrail.trace_by_request_id` across streams visible to the active connection
 - `natstrail.trace_by_correlation_id` across streams visible to the active connection
 - `natstrail.search_dlq` across detected DLQ subjects or an explicit subject
+
+Stream-scanning tools (`run_filter`, `search_messages`, `trace_*`, `search_dlq`, `enrich_sentry`)
+accept optional window and pagination inputs:
+
+- `fromTs` / `toTs` — epoch-millisecond time window, applied server-side.
+- `cursor` — resume sequence returned as `nextCursor` by a previous truncated query
+  (`run_filter` and `search_messages`).
+- `maxScan` — scan budget per query (default 10000, max 100000 examined messages).
+
+Without an explicit window or cursor, scans cover the most recent `maxScan` sequences and the
+envelope includes a `query.window_default` warning. When a scan stops at the limit or budget, the
+envelope returns a non-null `nextCursor` and, on budget exhaustion, a `query.scan_truncated`
+warning — so an agent always knows whether coverage was complete and how to continue.
 - `natstrail.enrich_sentry` as a composed trace + DLQ context envelope
 - `natstrail.get_message_detail` via stream + sequence direct lookup
 

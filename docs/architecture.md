@@ -84,6 +84,21 @@ Agent-facing responses use:
 query, summary, results, nextCursor, warnings, errors
 ```
 
+Stream reads go through a single bounded contract (`StreamQuery` -> `StreamQueryPage`):
+
+- The server scans streams with a **temporary ephemeral consumer** (ack-none, server-side
+  `filter_subject`), fetching messages in batches instead of one round trip per sequence, so
+  queries work on large streams.
+- Every query is bounded by a **scan budget** (`maxScan`, default 10000, max 100000 examined
+  messages) and an optional **time window** (`fromTs`/`toTs`, applied server-side via start time
+  and chronological cut-off).
+- When a scan stops early (limit or budget reached) the envelope returns a real `nextCursor`
+  (the next stream sequence) so callers and agents can resume exactly where they stopped.
+- With no explicit window or cursor, queries default to the most recent `maxScan` sequences and
+  emit a `query.window_default` warning, so results are never silently partial.
+- Trace tools page through each stream's window in `SCAN_PAGE_SIZE` chunks until the budget or
+  result limit is reached, instead of sampling only the newest messages.
+
 ### CLI (`packages/cli`)
 
 Node + TypeScript command-line interface. The first v2 slice reuses UI-created local contexts
@@ -101,8 +116,8 @@ The runtime accepts storage/connection data through adapters so MCP, CLI and HTT
 same Query Engine behavior.
 JetStream tools use the API bridge connection adapter and require the requested context to be the
 active connected context.
-Message query tools read bounded stream ranges and shape results as compact `AgentMessage` records
-instead of exposing raw NATS client objects.
+Message query tools read bounded stream windows through the shared `StreamQuery` contract and shape
+results as compact `AgentMessage` records instead of exposing raw NATS client objects.
 Every MCP tool execution is timeout-bounded. Integration API executions append a local audit entry
 with timestamp, origin, tool, context, result count and error count.
 Forwarded calls identify origin as `cli` or `mcp`; direct HTTP calls default to `integration-api`.

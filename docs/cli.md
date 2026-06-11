@@ -56,6 +56,20 @@ configured context when there is exactly one.
 
 Agent message records are intentionally compact: subject, timestamp, stream/sequence, bounded
 payload, truncation flag, JSON when safe, and extracted request/correlation IDs.
+
+Stream-scanning commands (`filter run`, `messages search`, `trace`, `dlq search`, `sentry enrich`)
+accept bounded-query flags:
+
+```bash
+npm run cli -- messages search --context-id local --stream ORDERS \
+  --from-ts 1710000000000 --to-ts 1710003600000 --max-scan 20000 --limit 50 --agent
+npm run cli -- messages search --context-id local --stream ORDERS --cursor 4213 --limit 50 --agent
+```
+
+`--from-ts` / `--to-ts` bound the scan to a time window, `--max-scan` caps how many messages are
+examined (default 10000), and `--cursor` resumes from the `nextCursor` of a previous truncated
+response. Without a window, scans default to the most recent `--max-scan` sequences and the
+envelope warns about it.
 Live commands (`subject listen`, `stream tail`) use the bridge WebSocket and stop at `--limit` or
 `--timeout-ms`.
 The MCP runtime enforces tool timeouts; Integration API calls are audited by the server.
