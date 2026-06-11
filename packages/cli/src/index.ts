@@ -34,6 +34,19 @@ const DEFAULT_PREFS: Preferences = {
   messageViewerMode: "tree",
 };
 
+const LIVE_TOOLS = new Set([
+  "natstrail.run_filter",
+  "natstrail.list_streams",
+  "natstrail.get_stream_info",
+  "natstrail.list_consumers",
+  "natstrail.search_messages",
+  "natstrail.get_message_detail",
+  "natstrail.trace_by_request_id",
+  "natstrail.trace_by_correlation_id",
+  "natstrail.search_dlq",
+  "natstrail.enrich_sentry",
+]);
+
 main(process.argv.slice(2)).catch((err: unknown) => fail(err instanceof Error ? err.message : String(err)));
 
 async function main(args: string[]): Promise<void> {
@@ -268,7 +281,7 @@ async function deleteContext(args: string[], output: Output): Promise<void> {
 async function connectContext(args: string[], output: Output): Promise<void> {
   if (!INTEGRATION_API) return printCliError(output, "connection.connect", "connection connect requires NATS_TRAIL_API=http://localhost:4000");
   const input = readNamedArgs(args);
-  const contextId = stringValue(input.contextId ?? input.id) ?? loadPreferences().selectedContextId;
+  const contextId = stringValue(input.contextId ?? input.id) ?? await detectContextId();
   if (!contextId) fail("Usage: nats-ui connection connect --context-id <id>");
   const state = await bridgePost<ConnectionState>("/connect", { contextId });
   if (output === "json" || output === "ndjson") printJson(createQueryEnvelope({ query: { tool: "connection.connect", contextId }, results: [state], limit: 1 }));
@@ -357,8 +370,11 @@ function printMcpDescribe(output: Output): void {
 async function runMcpTool(name: string | undefined, args: string[], output: Output): Promise<void> {
   if (!name) fail("Usage: nats-ui mcp run <tool-name> --limit <n>");
   const input = readNamedArgs(args);
-  const selectedContextId = loadPreferences().selectedContextId;
-  if (!input.contextId && selectedContextId) input.contextId = selectedContextId;
+  if (LIVE_TOOLS.has(name) && !input.contextId) input.contextId = await detectContextId();
+  if (INTEGRATION_API && LIVE_TOOLS.has(name) && input.noAutoConnect !== true) {
+    await ensureBridgeConnected(stringValue(input.contextId));
+  }
+  delete input.noAutoConnect;
   const envelope = INTEGRATION_API
     ? await callIntegrationTool(INTEGRATION_API, name, input, "cli")
     : await executeMcpTool(name, input, { contexts: loadContexts(), filters: loadFilters(), auditEntries: [], connectionState: localConnectionState() });
@@ -375,12 +391,37 @@ function readNamedArgs(args: string[]): Record<string, unknown> {
     const key = args[i];
     if (!key.startsWith("--")) continue;
     const value = args[i + 1];
-    if (!value || value.startsWith("--")) fail(`Missing value for ${key}`);
     const inputKey = toCamelCase(key.slice(2));
+    if (key === "--no-auto-connect") {
+      input[inputKey] = true;
+      continue;
+    }
+    if (!value || value.startsWith("--")) fail(`Missing value for ${key}`);
     input[inputKey] = inputKey === "limit" || inputKey === "seq" ? Number(value) : value;
     i += 1;
   }
   return input;
+}
+
+async function detectContextId(): Promise<string | undefined> {
+  if (INTEGRATION_API) {
+    const prefs = await bridgeGet<Partial<Preferences>>("/preferences").catch((): Partial<Preferences> => ({}));
+    if (prefs.selectedContextId) return prefs.selectedContextId;
+    const contexts = await bridgeGet<Context[]>("/contexts").catch(() => []);
+    if (contexts.length === 1) return contexts[0].id;
+    return undefined;
+  }
+  const selectedContextId = loadPreferences().selectedContextId;
+  if (selectedContextId) return selectedContextId;
+  const contexts = loadContexts();
+  return contexts.length === 1 ? contexts[0].id : undefined;
+}
+
+async function ensureBridgeConnected(contextId: string | undefined): Promise<void> {
+  if (!contextId) return;
+  const state = await bridgeGet<ConnectionState>("/connection").catch(() => null);
+  if (state?.status === "connected" && state.contextId === contextId) return;
+  await bridgePost<ConnectionState>("/connect", { contextId });
 }
 
 function toCamelCase(value: string): string {
