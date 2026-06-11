@@ -29,6 +29,8 @@ export interface McpRuntimeData {
   filters?: Filter[];
   auditEntries?: unknown[];
   connectionState?: ConnectionState;
+  /** Every pooled connection state, when the bridge runs a connection pool. */
+  connectionStates?: ConnectionState[];
   activeContextId?: string | null;
   listStreams?: () => Promise<Stream[]>;
   listConsumers?: (stream: string) => Promise<Consumer[]>;
@@ -80,9 +82,10 @@ async function executeMcpToolInner(name: string, input: Record<string, unknown>,
   }
 
   if (name === "natstrail.get_connection_status") {
+    const states = data.connectionStates?.length ? data.connectionStates : [data.connectionState ?? disconnectedState()];
     return createQueryEnvelope({
       query: { tool: name },
-      results: [data.connectionState ?? disconnectedState()],
+      results: states,
       limit,
     });
   }

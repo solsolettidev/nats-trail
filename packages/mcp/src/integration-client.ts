@@ -2,9 +2,14 @@ import { normalizeError, type QueryEnvelope } from "@nats-trail/core";
 
 export async function callIntegrationTool(baseUrl: string, name: string, input: Record<string, unknown>, origin = "mcp"): Promise<QueryEnvelope<unknown>> {
   try {
+    const token = process.env.NATS_TRAIL_TOKEN;
     const res = await fetch(`${trimSlash(baseUrl)}/api/integration/tools/${encodeURIComponent(name)}`, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-nats-trail-origin": origin },
+      headers: {
+        "content-type": "application/json",
+        "x-nats-trail-origin": origin,
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+      },
       body: JSON.stringify(input),
     });
     const body = await res.json() as QueryEnvelope<unknown>;
