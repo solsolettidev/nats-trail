@@ -44,8 +44,8 @@ export const api = {
 
   getConnection: () => req<ConnectionState>("/connection"),
   connect: (contextId: string) =>
-    req<ConnectionState>("/connect", { method: "POST", body: JSON.stringify({ contextId }) }),
-  disconnect: () => req<ConnectionState>("/disconnect", { method: "POST" }),
+    req<ConnectionState>("/connect", { method: "POST", body: JSON.stringify({ contextId, select: true }) }),
+  disconnect: () => req<ConnectionState>("/disconnect", { method: "POST", body: JSON.stringify({}) }),
 
   listStreams: () => req<Stream[]>("/streams"),
   listConsumers: (stream: string) =>
