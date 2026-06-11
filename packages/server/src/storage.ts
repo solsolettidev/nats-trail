@@ -22,6 +22,8 @@ export interface Preferences {
 export interface AuditEntry {
   timestamp: number;
   origin: AuditOrigin;
+  /** Authenticated token name when bridge auth is enabled, otherwise null. */
+  identity: string | null;
   tool: string;
   contextId: string | null;
   resultCount: number;
@@ -29,6 +31,12 @@ export interface AuditEntry {
 }
 
 export type AuditOrigin = "integration-api" | "cli" | "mcp" | "unknown";
+
+/** Bearer token accepted by the Integration API and the WebSocket endpoint. */
+export interface ApiToken {
+  name: string;
+  token: string;
+}
 
 const DEFAULT_PREFS: Preferences = {
   selectedContextId: null,
@@ -80,6 +88,12 @@ export function loadPreferences(): Preferences {
 
 export function savePreferences(prefs: Preferences): void {
   writeJson(PREFS_FILE, prefs);
+}
+
+export function loadTokens(): ApiToken[] {
+  return readJson<ApiToken[]>(join(DATA_DIR, "tokens.json"), []).filter(
+    (item) => typeof item?.name === "string" && typeof item?.token === "string" && item.token.length > 0,
+  );
 }
 
 export function appendAuditEntry(entry: AuditEntry): void {
