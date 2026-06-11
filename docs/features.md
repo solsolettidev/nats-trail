@@ -56,7 +56,8 @@ Every panel handles: loading, empty, error, connected and disconnected.
 - CLI package (`@nats-trail/cli`) with `nats-ui` / `nats-trail` command names reserved.
 - CLI interactive shell with `NATS-TRAIL CLI` ASCII banner and persistent `trail>` prompt.
 - Reuses UI-created local contexts from `data/contexts.json` or `NATS_TRAIL_DATA`.
-- Supports `contexts list`, `context use <id-or-name>` and `context current`.
+- Supports `contexts list`, `context use <id-or-name>`, `context current`, `context create`,
+  `context delete`, `connection connect` and `connection disconnect`.
 - Supports text, JSON, NDJSON and `--agent` JSON envelope output for current commands.
 - Sanitizes contexts before printing so secrets are not exposed.
 - MCP package defines explicit read-only `natstrail.*` tool contracts with input/output schemas and timeouts.

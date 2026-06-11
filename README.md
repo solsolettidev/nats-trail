@@ -63,6 +63,7 @@ See [`docs/features.md`](docs/features.md).
 npm run cli
 npm run cli -- contexts list
 npm run cli -- context use local
+npm run cli -- context create --id local --name Local --url nats://127.0.0.1:4222 --environment local
 npm run cli -- context current --output json
 npm run cli -- mcp tools --output json
 npm run cli -- context current --agent
@@ -71,6 +72,7 @@ npm run cli -- mcp run natstrail.list_filters --limit 50 --agent
 npm run cli -- filters list --limit 50 --agent
 npm run cli -- connection status --limit 1 --agent
 npm run cli -- audit list --limit 50 --agent
+NATS_TRAIL_API=http://localhost:4000 npm run cli -- connection connect --context-id local --agent
 NATS_TRAIL_API=http://localhost:4000 npm run cli -- streams list --context-id local --limit 50 --agent
 NATS_TRAIL_API=http://localhost:4000 npm run cli -- trace --context-id local --request-id req-123 --limit 20 --agent
 NATS_TRAIL_API=http://localhost:4000 npm run cli -- sentry enrich --context-id local --request-id req-123 --limit 20 --agent

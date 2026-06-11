@@ -10,9 +10,13 @@ npm run cli
 npm run cli -- contexts list
 npm run cli -- context use local
 npm run cli -- context current --output json
+npm run cli -- context create --id local --name Local --url nats://127.0.0.1:4222 --environment local
+npm run cli -- context delete --context-id local
 npm run cli -- mcp describe --output json
 npm run cli -- context current --agent
 npm run cli -- connection status --limit 1 --agent
+NATS_TRAIL_API=http://localhost:4000 npm run cli -- connection connect --context-id local --agent
+NATS_TRAIL_API=http://localhost:4000 npm run cli -- connection disconnect --agent
 npm run cli -- audit list --limit 50 --agent
 npm run cli -- mcp run natstrail.list_contexts --limit 50 --agent
 npm run cli -- mcp run natstrail.list_filters --limit 50 --agent
@@ -68,7 +72,12 @@ npm run cli -- contexts list
 npm run cli -- contexts list --output json
 npm run cli -- context use <id-or-name>
 npm run cli -- context current
+npm run cli -- context create --id local --name Local --url nats://127.0.0.1:4222 --environment local
+npm run cli -- context delete --context-id local
 ```
+
+When `NATS_TRAIL_API` is set, `contexts list`, `context create`, `context delete`,
+`connection connect` and `connection disconnect` operate through the bridge API.
 
 Context output is sanitized with the shared core sanitizer, so password, token and `.creds`
 path values are not printed.
