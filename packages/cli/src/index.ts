@@ -20,6 +20,7 @@ interface Preferences {
 
 const DATA_DIR = process.env.NATS_TRAIL_DATA ?? join(process.cwd(), "data");
 const INTEGRATION_API = process.env.NATS_TRAIL_API;
+const API_TOKEN = process.env.NATS_TRAIL_TOKEN;
 const CONTEXTS_FILE = join(DATA_DIR, "contexts.json");
 const PREFS_FILE = join(DATA_DIR, "preferences.json");
 const FILTERS_FILE = join(DATA_DIR, "filters.json");
@@ -106,7 +107,7 @@ async function runCommand(args: string[]): Promise<void> {
   }
 
   if (command[0] === "connection" && command[1] === "disconnect") {
-    await disconnectContext(output);
+    await disconnectContext(command.slice(2), output);
     return;
   }
 
@@ -301,10 +302,12 @@ async function connectContext(args: string[], output: Output): Promise<void> {
   else console.log(`${state.status}\t${state.contextId ?? "-"}\t${state.url ?? "-"}`);
 }
 
-async function disconnectContext(output: Output): Promise<void> {
+async function disconnectContext(args: string[], output: Output): Promise<void> {
   if (!INTEGRATION_API) return printCliError(output, "connection.disconnect", "connection disconnect requires NATS_TRAIL_API=http://localhost:4000");
-  const state = await bridgePost<ConnectionState>("/disconnect", {});
-  if (output === "json" || output === "ndjson") printJson(createQueryEnvelope({ query: { tool: "connection.disconnect" }, results: [state], limit: 1 }));
+  const input = readNamedArgs(args);
+  const contextId = stringValue(input.contextId ?? input.id);
+  const state = await bridgePost<ConnectionState>("/disconnect", contextId ? { contextId } : {});
+  if (output === "json" || output === "ndjson") printJson(createQueryEnvelope({ query: { tool: "connection.disconnect", contextId }, results: [state], limit: 1 }));
   else console.log(state.status);
 }
 
@@ -404,7 +407,7 @@ async function listenSubject(args: string[], output: Output): Promise<void> {
   if (!subject) return printCliError(output, "subject.listen", "subject listen requires --subject");
   try {
     await ensureLiveBridge(input);
-    await collectWsMessages({ action: "subscribe", subject }, "message", input, output, "subject.listen");
+    await collectWsMessages({ action: "subscribe", subject, contextId: input.contextId }, "message", input, output, "subject.listen");
   } catch (err) {
     printCliError(output, "subject.listen", err instanceof Error ? err.message : String(err));
   }
@@ -417,7 +420,7 @@ async function tailStream(args: string[], output: Output): Promise<void> {
   try {
     await ensureLiveBridge(input);
     const filterSubjects = stringValue(input.subject) ? [stringValue(input.subject)] : [];
-    await collectWsMessages({ action: "js_subscribe", stream, filterSubjects }, "js_message", input, output, "stream.tail");
+    await collectWsMessages({ action: "js_subscribe", stream, filterSubjects, contextId: input.contextId }, "js_message", input, output, "stream.tail");
   } catch (err) {
     printCliError(output, "stream.tail", err instanceof Error ? err.message : String(err));
   }
@@ -586,6 +589,7 @@ function toWsUrl(apiUrl: string): string {
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
   url.pathname = "/ws";
   url.search = "";
+  if (API_TOKEN) url.searchParams.set("token", API_TOKEN);
   return url.toString();
 }
 
@@ -612,7 +616,11 @@ async function bridgeRequest<T = unknown>(path: string, init: RequestInit): Prom
   if (!INTEGRATION_API) fail("NATS_TRAIL_API is required for bridge requests");
   const res = await fetch(`${INTEGRATION_API.replace(/\/+$/, "")}/api${path}`, {
     ...init,
-    headers: { "content-type": "application/json", ...(init.headers ?? {}) },
+    headers: {
+      "content-type": "application/json",
+      ...(API_TOKEN ? { authorization: `Bearer ${API_TOKEN}` } : {}),
+      ...(init.headers ?? {}),
+    },
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(JSON.stringify(body));
@@ -689,7 +697,11 @@ Options:
   --agent                     Force JSON envelopes for agent-safe usage
   --from-ts / --to-ts <ms>    Bound stream queries to a time window (epoch ms)
   --cursor <seq>              Resume a truncated stream query from nextCursor
-  --max-scan <n>              Max messages scanned per query (default 10000)`);
+  --max-scan <n>              Max messages scanned per query (default 10000)
+
+Environment:
+  NATS_TRAIL_API              Bridge URL for live commands and forwarding
+  NATS_TRAIL_TOKEN            Bearer token when the bridge has auth enabled`);
 }
 
 function printBanner(): void {
