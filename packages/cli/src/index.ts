@@ -1,5 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { createInterface } from "node:readline/promises";
 import { join } from "node:path";
+import { stdin as input, stdout as output } from "node:process";
 import { createQueryEnvelope, sanitizeContext, type ConnectionState, type Context, type Filter } from "@nats-trail/core";
 import { callIntegrationTool, executeMcpTool, mcpTools } from "@nats-trail/mcp";
 
@@ -20,6 +22,7 @@ const INTEGRATION_API = process.env.NATS_TRAIL_API;
 const CONTEXTS_FILE = join(DATA_DIR, "contexts.json");
 const PREFS_FILE = join(DATA_DIR, "preferences.json");
 const FILTERS_FILE = join(DATA_DIR, "filters.json");
+let interactiveMode = false;
 
 const DEFAULT_PREFS: Preferences = {
   selectedContextId: null,
@@ -34,11 +37,19 @@ const DEFAULT_PREFS: Preferences = {
 main(process.argv.slice(2)).catch((err: unknown) => fail(err instanceof Error ? err.message : String(err)));
 
 async function main(args: string[]): Promise<void> {
+  if (args.length === 0) {
+    await startInteractive();
+    return;
+  }
+  await runCommand(args);
+}
+
+async function runCommand(args: string[]): Promise<void> {
   const agent = args.includes("--agent");
   const output = agent ? "json" : readOutput(args);
   const command = stripKnownFlags(args);
 
-  if (command.length === 0 || command[0] === "help" || command[0] === "--help") {
+  if (command[0] === "help" || command[0] === "--help") {
     printHelp();
     return;
   }
@@ -137,6 +148,32 @@ async function main(args: string[]): Promise<void> {
   }
 
   fail(`Unknown command: ${command.join(" ")}`);
+}
+
+async function startInteractive(): Promise<void> {
+  interactiveMode = true;
+  printBanner();
+  const rl = createInterface({ input, output });
+  try {
+    while (true) {
+      const line = (await rl.question("trail> ")).trim();
+      if (!line) continue;
+      if (line === "exit" || line === "quit") break;
+      try {
+        await runCommand(splitCommand(line));
+      } catch (err) {
+        console.error(err instanceof Error ? err.message : String(err));
+      }
+    }
+  } finally {
+    interactiveMode = false;
+    rl.close();
+  }
+}
+
+function splitCommand(line: string): string[] {
+  const matches = line.match(/"[^"]*"|'[^']*'|\S+/g) ?? [];
+  return matches.map((part) => part.replace(/^(["'])(.*)\1$/, "$2"));
 }
 
 function readOutput(args: string[]): Output {
@@ -331,6 +368,8 @@ function printJsonLine(value: unknown): void {
 function printHelp(): void {
   console.log(`nats-ui <command>
 
+Run without arguments to open the interactive shell. Type exit or quit to leave.
+
 Commands:
   contexts list              List UI-configured contexts
   context current            Show selected context
@@ -356,7 +395,21 @@ Options:
   --agent                     Force JSON envelopes for agent-safe usage`);
 }
 
+function printBanner(): void {
+  console.log(String.raw`
+ _  _   _   _____ ___   _____ ___    _   ___ _
+| \| | /_\ |_   _/ __| |_   _| _ \  /_\ |_ _| |
+| .  |/ _ \  | | \__ \   | | |   / / _ \ | || |__
+|_|\_/_/ \_\ |_| |___/   |_| |_|_\/_/ \_\___|____|
+
+  .--.        .--.        .--.
+ (    )--.--(    )--.--(    )     NATS-TRAIL CLI
+  '--'        '--'        '--'      type help for commands
+`);
+}
+
 function fail(message: string): never {
+  if (interactiveMode) throw new Error(message);
   console.error(message);
   process.exit(1);
 }
