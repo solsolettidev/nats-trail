@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createInterface } from "node:readline/promises";
 import { join } from "node:path";
 import { stdin as input, stdout as output } from "node:process";
-import { createQueryEnvelope, sanitizeContext, type ConnectionState, type Context, type Filter } from "@nats-trail/core";
+import { createQueryEnvelope, sanitizeContext, validateContext, type AuthType, type ConnectionState, type Context, type Environment, type Filter } from "@nats-trail/core";
 import { callIntegrationTool, executeMcpTool, mcpTools } from "@nats-trail/mcp";
 
 type Output = "text" | "json" | "ndjson";
@@ -55,7 +55,17 @@ async function runCommand(args: string[]): Promise<void> {
   }
 
   if (command[0] === "contexts" && command[1] === "list") {
-    printContexts(output);
+    await printContexts(output);
+    return;
+  }
+
+  if (command[0] === "context" && command[1] === "create") {
+    await createContext(command.slice(2), output);
+    return;
+  }
+
+  if (command[0] === "context" && command[1] === "delete") {
+    await deleteContext(command.slice(2), output);
     return;
   }
 
@@ -71,6 +81,16 @@ async function runCommand(args: string[]): Promise<void> {
 
   if (command[0] === "connection" && command[1] === "status") {
     await runMcpTool("natstrail.get_connection_status", command.slice(2), output);
+    return;
+  }
+
+  if (command[0] === "connection" && command[1] === "connect") {
+    await connectContext(command.slice(2), output);
+    return;
+  }
+
+  if (command[0] === "connection" && command[1] === "disconnect") {
+    await disconnectContext(output);
     return;
   }
 
@@ -201,9 +221,9 @@ function stripKnownFlags(args: string[]): string[] {
   return stripOutputArgs(args);
 }
 
-function printContexts(output: Output): void {
+async function printContexts(output: Output): Promise<void> {
   const prefs = loadPreferences();
-  const contexts = loadContexts().map(sanitizeContext);
+  const contexts = INTEGRATION_API ? await bridgeGet<Context[]>("/contexts") : loadContexts().map(sanitizeContext);
   if (output === "json") {
     printJson(createQueryEnvelope({ query: { tool: "contexts.list", currentContextId: prefs.selectedContextId }, results: contexts }));
     return;
@@ -220,6 +240,46 @@ function printContexts(output: Output): void {
     const marker = ctx.id === prefs.selectedContextId ? "*" : " ";
     console.log(`${marker} ${ctx.id}\t${ctx.name}\t${ctx.environment}\t${ctx.url}`);
   }
+}
+
+async function createContext(args: string[], output: Output): Promise<void> {
+  const input = readNamedArgs(args);
+  const ctx = contextFromInput(input);
+  const errors = validateContext(ctx);
+  if (errors.length) {
+    printJson(createQueryEnvelope({ query: { tool: "context.create" }, results: [], errors }));
+    return;
+  }
+  const saved = INTEGRATION_API ? await bridgePost<Context>("/contexts", ctx) : saveLocalContext(ctx);
+  if (output === "json" || output === "ndjson") printJson(createQueryEnvelope({ query: { tool: "context.create" }, results: [sanitizeContext(saved)] }));
+  else console.log(`Created context ${saved.id}`);
+}
+
+async function deleteContext(args: string[], output: Output): Promise<void> {
+  const input = readNamedArgs(args);
+  const id = stringValue(input.contextId ?? input.id);
+  if (!id) fail("Usage: nats-ui context delete --context-id <id>");
+  if (INTEGRATION_API) await bridgeDelete(`/contexts/${encodeURIComponent(id)}`);
+  else saveContexts(loadContexts().filter((ctx) => ctx.id !== id));
+  if (output === "json" || output === "ndjson") printJson(createQueryEnvelope({ query: { tool: "context.delete", contextId: id }, results: [{ ok: true }] }));
+  else console.log(`Deleted context ${id}`);
+}
+
+async function connectContext(args: string[], output: Output): Promise<void> {
+  if (!INTEGRATION_API) return printCliError(output, "connection.connect", "connection connect requires NATS_TRAIL_API=http://localhost:4000");
+  const input = readNamedArgs(args);
+  const contextId = stringValue(input.contextId ?? input.id) ?? loadPreferences().selectedContextId;
+  if (!contextId) fail("Usage: nats-ui connection connect --context-id <id>");
+  const state = await bridgePost<ConnectionState>("/connect", { contextId });
+  if (output === "json" || output === "ndjson") printJson(createQueryEnvelope({ query: { tool: "connection.connect", contextId }, results: [state], limit: 1 }));
+  else console.log(`${state.status}\t${state.contextId ?? "-"}\t${state.url ?? "-"}`);
+}
+
+async function disconnectContext(output: Output): Promise<void> {
+  if (!INTEGRATION_API) return printCliError(output, "connection.disconnect", "connection disconnect requires NATS_TRAIL_API=http://localhost:4000");
+  const state = await bridgePost<ConnectionState>("/disconnect", {});
+  if (output === "json" || output === "ndjson") printJson(createQueryEnvelope({ query: { tool: "connection.disconnect" }, results: [state], limit: 1 }));
+  else console.log(state.status);
 }
 
 function printCurrentContext(output: Output): void {
@@ -331,6 +391,10 @@ function loadContexts(): Context[] {
   return readJson<Context[]>(CONTEXTS_FILE, []);
 }
 
+function saveContexts(contexts: Context[]): void {
+  writeJson(CONTEXTS_FILE, contexts);
+}
+
 function loadFilters(): Filter[] {
   return readJson<Filter[]>(FILTERS_FILE, []);
 }
@@ -344,8 +408,72 @@ function localConnectionState(): ConnectionState {
 }
 
 function savePreferences(prefs: Preferences): void {
+  writeJson(PREFS_FILE, prefs);
+}
+
+function saveLocalContext(ctx: Context): Context {
+  saveContexts(loadContexts().filter((item) => item.id !== ctx.id).concat(ctx));
+  return ctx;
+}
+
+function contextFromInput(input: Record<string, unknown>): Context {
+  const name = stringValue(input.name) ?? "context";
+  const id = stringValue(input.id) ?? slug(name);
+  const authType = (stringValue(input.authType) ?? "none") as AuthType;
+  return {
+    id,
+    name,
+    environment: (stringValue(input.environment) ?? "custom") as Environment,
+    url: stringValue(input.url) ?? "",
+    auth: {
+      type: authType,
+      username: stringValue(input.username),
+      password: stringValue(input.password),
+      token: stringValue(input.token),
+      credsPath: stringValue(input.credsPath),
+    },
+    tls: {
+      enabled: input.tls === true || input.tls === "true",
+      serverName: stringValue(input.serverName),
+      caPath: stringValue(input.caPath),
+    },
+  };
+}
+
+function slug(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "context";
+}
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === "string" && value ? value : undefined;
+}
+
+async function bridgeGet<T>(path: string): Promise<T> {
+  return bridgeRequest<T>(path, { method: "GET" });
+}
+
+async function bridgePost<T>(path: string, body: unknown): Promise<T> {
+  return bridgeRequest<T>(path, { method: "POST", body: JSON.stringify(body) });
+}
+
+async function bridgeDelete(path: string): Promise<void> {
+  await bridgeRequest(path, { method: "DELETE" });
+}
+
+async function bridgeRequest<T = unknown>(path: string, init: RequestInit): Promise<T> {
+  if (!INTEGRATION_API) fail("NATS_TRAIL_API is required for bridge requests");
+  const res = await fetch(`${INTEGRATION_API.replace(/\/+$/, "")}/api${path}`, {
+    ...init,
+    headers: { "content-type": "application/json", ...(init.headers ?? {}) },
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(JSON.stringify(body));
+  return body as T;
+}
+
+function writeJson(file: string, value: unknown): void {
   if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
-  writeFileSync(PREFS_FILE, JSON.stringify(prefs, null, 2), "utf8");
+  writeFileSync(file, JSON.stringify(value, null, 2), "utf8");
 }
 
 function readJson<T>(file: string, fallback: T): T {
@@ -365,6 +493,18 @@ function printJsonLine(value: unknown): void {
   console.log(JSON.stringify(value));
 }
 
+function printCliError(output: Output, tool: string, message: string): void {
+  if (output === "json" || output === "ndjson") {
+    printJson(createQueryEnvelope({
+      query: { tool },
+      results: [],
+      errors: [{ code: "cli.bridge_required", message, retriable: false }],
+    }));
+    return;
+  }
+  fail(message);
+}
+
 function printHelp(): void {
   console.log(`nats-ui <command>
 
@@ -374,7 +514,11 @@ Commands:
   contexts list              List UI-configured contexts
   context current            Show selected context
   context use <id-or-name>   Select a context for CLI usage
+  context create             Create a context locally or through the bridge
+  context delete             Delete a context locally or through the bridge
   connection status          Show bridge/local connection state
+  connection connect         Connect the bridge to a context
+  connection disconnect      Disconnect the bridge
   audit list                 List recent audit entries
   mcp tools                  List read-only MCP-friendly commands
   mcp describe               Describe agent response formats and safety
