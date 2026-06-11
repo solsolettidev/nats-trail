@@ -73,6 +73,7 @@ npm run cli -- filters list --limit 50 --agent
 npm run cli -- connection status --limit 1 --agent
 npm run cli -- audit list --limit 50 --agent
 NATS_TRAIL_API=http://localhost:4000 npm run cli -- connection connect --context-id local --agent
+NATS_TRAIL_API=http://localhost:4000 npm run cli -- streams list --limit 50 --agent
 NATS_TRAIL_API=http://localhost:4000 npm run cli -- streams list --context-id local --limit 50 --agent
 NATS_TRAIL_API=http://localhost:4000 npm run cli -- trace --context-id local --request-id req-123 --limit 20 --agent
 NATS_TRAIL_API=http://localhost:4000 npm run cli -- sentry enrich --context-id local --request-id req-123 --limit 20 --agent

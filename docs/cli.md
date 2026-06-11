@@ -41,11 +41,15 @@ Set `NATS_TRAIL_API` to forward `mcp run` calls to the bridge:
 NATS_TRAIL_API=http://localhost:4000 npm run cli -- mcp run natstrail.list_streams --context-id local --limit 50 --agent
 ```
 
+For live commands, the CLI detects `--context-id` automatically from the selected context, or from
+the only configured context. When `NATS_TRAIL_API` is set, live commands auto-connect the bridge to
+that context before running. Use `--no-auto-connect` to disable that behavior.
+
 The higher-level CLI aliases (`connection status`, `audit list`, `filters list`, `filter run`, `streams list`,
 `stream info`, `consumers list`, `messages search`, `message detail`, `trace`, `dlq search`,
 `sentry enrich`) use the same forwarding behavior and output envelopes.
-If `--context-id` is omitted, the CLI uses the selected context from shared preferences when one
-exists.
+If `--context-id` is omitted, the CLI uses the selected context from shared preferences, or the only
+configured context when there is exactly one.
 
 Agent message records are intentionally compact: subject, timestamp, stream/sequence, bounded
 payload, truncation flag, JSON when safe, and extracted request/correlation IDs.

@@ -58,6 +58,7 @@ Every panel handles: loading, empty, error, connected and disconnected.
 - Reuses UI-created local contexts from `data/contexts.json` or `NATS_TRAIL_DATA`.
 - Supports `contexts list`, `context use <id-or-name>`, `context current`, `context create`,
   `context delete`, `connection connect` and `connection disconnect`.
+- CLI detects the selected or only configured context and auto-connects the bridge for live commands.
 - Supports text, JSON, NDJSON and `--agent` JSON envelope output for current commands.
 - Sanitizes contexts before printing so secrets are not exposed.
 - MCP package defines explicit read-only `natstrail.*` tool contracts with input/output schemas and timeouts.
