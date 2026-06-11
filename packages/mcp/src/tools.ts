@@ -32,20 +32,33 @@ const limitProperty = {
   description: "Required maximum number of results.",
 };
 
+const fromTsProperty = { type: "integer", minimum: 0, description: "Window start in epoch milliseconds." };
+const toTsProperty = { type: "integer", minimum: 0, description: "Window end in epoch milliseconds." };
+const cursorProperty = { type: "string", description: "Resume cursor from a previous nextCursor." };
+const maxScanProperty = {
+  type: "integer",
+  minimum: 1,
+  maximum: 100000,
+  description: "Maximum messages scanned before returning a cursor (default 10000).",
+};
+
+/** Timeout for tools that scan stream windows instead of reading local state. */
+const SCAN_TIMEOUT_MS = 15000;
+
 export const mcpTools: McpToolDefinition[] = [
   tool("natstrail.list_contexts", "List sanitized configured contexts.", withLimit({})),
   tool("natstrail.get_connection_status", "Get the current bridge connection state.", withLimit({})),
   tool("natstrail.list_audit", "List recent Integration API audit entries.", withLimit({})),
   tool("natstrail.list_filters", "List saved reusable filters.", withLimit({})),
-  tool("natstrail.run_filter", "Run a saved filter by id or name.", { contextId: { type: "string" }, filter: { type: "string" }, limit: limitProperty }),
+  tool("natstrail.run_filter", "Run a saved filter by id or name.", { contextId: { type: "string" }, filter: { type: "string" }, limit: limitProperty, cursor: cursorProperty, maxScan: maxScanProperty }, ["contextId", "filter", "limit"], SCAN_TIMEOUT_MS),
   tool("natstrail.list_streams", "List JetStream streams for a context.", { contextId: { type: "string" }, limit: limitProperty }),
   tool("natstrail.get_stream_info", "Get one stream summary.", withLimit({ contextId: { type: "string" }, stream: { type: "string" } })),
   tool("natstrail.list_consumers", "List consumers for a stream.", { contextId: { type: "string" }, stream: { type: "string" }, limit: limitProperty }),
-  tool("natstrail.search_messages", "Search bounded NATS/JetStream messages.", { contextId: { type: "string" }, stream: { type: "string" }, subject: { type: "string" }, requestId: { type: "string" }, correlationId: { type: "string" }, text: { type: "string" }, limit: limitProperty }, ["contextId", "stream", "limit"]),
-  tool("natstrail.trace_by_request_id", "Trace messages by request_id.", { contextId: { type: "string" }, requestId: { type: "string" }, limit: limitProperty }),
-  tool("natstrail.trace_by_correlation_id", "Trace messages by correlation_id.", { contextId: { type: "string" }, correlationId: { type: "string" }, limit: limitProperty }),
-  tool("natstrail.search_dlq", "Search dead-letter messages.", { contextId: { type: "string" }, subject: { type: "string" }, limit: limitProperty }, ["contextId", "limit"]),
-  tool("natstrail.enrich_sentry", "Collect trace and DLQ context for a Sentry issue.", { contextId: { type: "string" }, requestId: { type: "string" }, correlationId: { type: "string" }, limit: limitProperty }, ["contextId", "limit"]),
+  tool("natstrail.search_messages", "Search bounded NATS/JetStream messages.", { contextId: { type: "string" }, stream: { type: "string" }, subject: { type: "string" }, requestId: { type: "string" }, correlationId: { type: "string" }, text: { type: "string" }, limit: limitProperty, cursor: cursorProperty, fromTs: fromTsProperty, toTs: toTsProperty, maxScan: maxScanProperty }, ["contextId", "stream", "limit"], SCAN_TIMEOUT_MS),
+  tool("natstrail.trace_by_request_id", "Trace messages by request_id.", { contextId: { type: "string" }, requestId: { type: "string" }, limit: limitProperty, fromTs: fromTsProperty, toTs: toTsProperty, maxScan: maxScanProperty }, ["contextId", "requestId", "limit"], SCAN_TIMEOUT_MS),
+  tool("natstrail.trace_by_correlation_id", "Trace messages by correlation_id.", { contextId: { type: "string" }, correlationId: { type: "string" }, limit: limitProperty, fromTs: fromTsProperty, toTs: toTsProperty, maxScan: maxScanProperty }, ["contextId", "correlationId", "limit"], SCAN_TIMEOUT_MS),
+  tool("natstrail.search_dlq", "Search dead-letter messages.", { contextId: { type: "string" }, subject: { type: "string" }, limit: limitProperty, fromTs: fromTsProperty, toTs: toTsProperty, maxScan: maxScanProperty }, ["contextId", "limit"], SCAN_TIMEOUT_MS),
+  tool("natstrail.enrich_sentry", "Collect trace and DLQ context for a Sentry issue.", { contextId: { type: "string" }, requestId: { type: "string" }, correlationId: { type: "string" }, limit: limitProperty, fromTs: fromTsProperty, toTs: toTsProperty, maxScan: maxScanProperty }, ["contextId", "limit"], SCAN_TIMEOUT_MS),
   tool("natstrail.get_message_detail", "Get a single message detail by locator.", withLimit({ contextId: { type: "string" }, stream: { type: "string" }, seq: { type: "integer" } })),
 ];
 
@@ -94,7 +107,7 @@ function matchesSchemaType(value: unknown, expected: string | string[]): boolean
   });
 }
 
-function tool(name: string, description: string, properties: Record<string, unknown>, required = Object.keys(properties)): McpToolDefinition {
+function tool(name: string, description: string, properties: Record<string, unknown>, required = Object.keys(properties), timeoutMs = 5000): McpToolDefinition {
   return {
     name,
     description,
@@ -106,7 +119,7 @@ function tool(name: string, description: string, properties: Record<string, unkn
     },
     outputSchema: envelopeSchema,
     readOnly: true,
-    timeoutMs: 5000,
+    timeoutMs,
   };
 }
 

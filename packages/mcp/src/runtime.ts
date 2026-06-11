@@ -4,8 +4,11 @@ import {
   matchFilter,
   normalizeError,
   normalizeLimit,
+  normalizeScan,
+  parseCursor,
   parseDlqEvent,
   sanitizeContext,
+  subjectMatches,
   toAgentMessage,
   type AgentMessage,
   type ConnectionState,
@@ -14,7 +17,10 @@ import {
   type Filter,
   type Message,
   type QueryEnvelope,
+  type QueryWarning,
   type Stream,
+  type StreamQuery,
+  type StreamQueryPage,
 } from "@nats-trail/core";
 import { mcpTools, validateToolInput } from "./tools.js";
 
@@ -27,8 +33,11 @@ export interface McpRuntimeData {
   listStreams?: () => Promise<Stream[]>;
   listConsumers?: (stream: string) => Promise<Consumer[]>;
   getStreamMessage?: (stream: string, seq: number) => Promise<Message | null>;
-  searchStreamMessages?: (input: { stream: string; subject?: string; limit: number }) => Promise<Message[]>;
+  queryStreamMessages?: (query: StreamQuery) => Promise<StreamQueryPage>;
 }
+
+/** Page size used when a tool scans a stream window incrementally. */
+const SCAN_PAGE_SIZE = 500;
 
 interface AgentDlqEvent {
   message: AgentMessage;
@@ -97,16 +106,24 @@ async function executeMcpToolInner(name: string, input: Record<string, unknown>,
   if (name === "natstrail.run_filter") {
     const error = validateConnectedContext(name, input, data);
     if (error) return error;
-    if (!data.searchStreamMessages) return notImplemented(name, limit);
+    if (!data.queryStreamMessages) return notImplemented(name, limit);
     const filterName = stringInput(input.filter);
     if (!filterName) return inputError(name, limit, "filter is required");
     const filter = (data.filters ?? []).find((item) => item.id === filterName || item.name === filterName);
     if (!filter) return inputError(name, limit, `filter not found: ${filterName}`);
     if (!filter.stream) return inputError(name, limit, `filter requires a stream: ${filter.id}`);
     try {
-      const messages = await data.searchStreamMessages({ stream: filter.stream, subject: filter.subject, limit });
-      const results = messages.filter((message) => matchFilter(filter, message)).map((message) => toAgentMessage(message, filter.stream));
-      return createQueryEnvelope({ query: { tool: name, contextId: input.contextId, filter: filter.id }, results, limit });
+      const page = await data.queryStreamMessages({
+        stream: filter.stream,
+        subject: filter.subject,
+        limit,
+        startSeq: parseCursor(input.cursor),
+        fromTs: filter.fromTs,
+        toTs: filter.toTs,
+        maxScan: numberInput(input.maxScan),
+      });
+      const results = page.messages.filter((message) => matchFilter(filter, message)).map((message) => toAgentMessage(message, filter.stream));
+      return createQueryEnvelope({ query: { tool: name, contextId: input.contextId, filter: filter.id }, results, limit, nextCursor: page.nextCursor, warnings: page.warnings });
     } catch (err) {
       return toolError(name, limit, err);
     }
@@ -169,17 +186,25 @@ async function executeMcpToolInner(name: string, input: Record<string, unknown>,
   if (name === "natstrail.search_messages") {
     const error = validateConnectedContext(name, input, data);
     if (error) return error;
-    if (!data.searchStreamMessages) return notImplemented(name, limit);
+    if (!data.queryStreamMessages) return notImplemented(name, limit);
     const stream = String(input.stream ?? "");
     if (!stream) return inputError(name, limit, "stream is required");
     try {
-      const messages = await data.searchStreamMessages({ stream, subject: stringInput(input.subject), limit });
-      const results = messages
+      const page = await data.queryStreamMessages({
+        stream,
+        subject: stringInput(input.subject),
+        limit,
+        startSeq: parseCursor(input.cursor),
+        fromTs: numberInput(input.fromTs),
+        toTs: numberInput(input.toTs),
+        maxScan: numberInput(input.maxScan),
+      });
+      const results = page.messages
         .filter((msg) => matchesString(msg.data, input.text))
         .map((msg) => toAgentMessage(msg, stream))
         .filter((msg) => matchesString(msg.requestId, input.requestId))
         .filter((msg) => matchesString(msg.correlationId, input.correlationId));
-      return createQueryEnvelope({ query: { tool: name, contextId: input.contextId, stream, subject: input.subject, requestId: input.requestId, correlationId: input.correlationId, text: input.text }, results, limit });
+      return createQueryEnvelope({ query: { tool: name, contextId: input.contextId, stream, subject: input.subject, requestId: input.requestId, correlationId: input.correlationId, text: input.text }, results, limit, nextCursor: page.nextCursor, warnings: page.warnings });
     } catch (err) {
       return toolError(name, limit, err);
     }
@@ -188,21 +213,40 @@ async function executeMcpToolInner(name: string, input: Record<string, unknown>,
   if (name === "natstrail.trace_by_request_id" || name === "natstrail.trace_by_correlation_id") {
     const error = validateConnectedContext(name, input, data);
     if (error) return error;
-    if (!data.searchStreamMessages || !data.listStreams) return notImplemented(name, limit);
+    if (!data.queryStreamMessages || !data.listStreams) return notImplemented(name, limit);
     const key = name.endsWith("request_id") ? "requestId" : "correlationId";
     const value = stringInput(input[key]);
     if (!value) return inputError(name, limit, `${key} is required`);
     try {
       const streams = await data.listStreams();
       const found: AgentMessage[] = [];
+      const warnings: QueryWarning[] = [];
+      const budget = normalizeScan(input.maxScan);
       for (const stream of streams) {
         if (found.length >= limit) break;
-        const messages = await data.searchStreamMessages({ stream: stream.name, limit });
-        const shaped = messages.map((msg) => toAgentMessage(msg, stream.name));
-        found.push(...shaped.filter((msg) => key === "requestId" ? msg.requestId === value : msg.correlationId === value));
+        // Page through the stream window so the whole budget is scanned for
+        // matches, not just the first page of messages.
+        let startSeq: number | undefined;
+        let scanned = 0;
+        while (scanned < budget && found.length < limit) {
+          const page = await data.queryStreamMessages({
+            stream: stream.name,
+            limit: SCAN_PAGE_SIZE,
+            startSeq,
+            fromTs: numberInput(input.fromTs),
+            toTs: numberInput(input.toTs),
+            maxScan: budget - scanned,
+          });
+          scanned += page.scanned;
+          warnings.push(...page.warnings.map((warning) => ({ ...warning, message: `${stream.name}: ${warning.message}` })));
+          const shaped = page.messages.map((msg) => toAgentMessage(msg, stream.name));
+          found.push(...shaped.filter((msg) => key === "requestId" ? msg.requestId === value : msg.correlationId === value));
+          if (!page.nextCursor) break;
+          startSeq = parseCursor(page.nextCursor);
+        }
       }
       found.sort((a, b) => a.timestamp - b.timestamp);
-      return createQueryEnvelope({ query: { tool: name, contextId: input.contextId, [key]: value }, results: found, limit });
+      return createQueryEnvelope({ query: { tool: name, contextId: input.contextId, [key]: value }, results: found, limit, warnings });
     } catch (err) {
       return toolError(name, limit, err);
     }
@@ -211,29 +255,38 @@ async function executeMcpToolInner(name: string, input: Record<string, unknown>,
   if (name === "natstrail.search_dlq") {
     const error = validateConnectedContext(name, input, data);
     if (error) return error;
-    if (!data.searchStreamMessages || !data.listStreams) return notImplemented(name, limit);
+    if (!data.queryStreamMessages || !data.listStreams) return notImplemented(name, limit);
     try {
       const streams = await data.listStreams();
       const found: AgentDlqEvent[] = [];
+      const warnings: QueryWarning[] = [];
       const subject = stringInput(input.subject);
       for (const stream of streams) {
         if (found.length >= limit) break;
-        const dlqSubjects = subject ? [subject] : stream.subjects.filter(isDlqSubject);
+        const dlqSubjects = (subject ? [subject] : stream.subjects.filter(isDlqSubject))
+          .filter((dlqSubject) => stream.subjects.some((s) => subjectMatches(s, dlqSubject) || subjectMatches(dlqSubject, s)));
         for (const dlqSubject of dlqSubjects) {
           if (found.length >= limit) break;
-          const messages = await data.searchStreamMessages({ stream: stream.name, subject: dlqSubject, limit });
-          for (const message of messages) {
+          const page = await data.queryStreamMessages({
+            stream: stream.name,
+            subject: dlqSubject,
+            limit: limit - found.length,
+            fromTs: numberInput(input.fromTs),
+            toTs: numberInput(input.toTs),
+            maxScan: numberInput(input.maxScan),
+          });
+          warnings.push(...page.warnings.map((warning) => ({ ...warning, message: `${stream.name}: ${warning.message}` })));
+          for (const message of page.messages) {
             const event = parseDlqEvent(message);
             found.push({
               message: toAgentMessage(message, stream.name),
               originalSubject: event.originalSubject,
               reason: event.reason,
             });
-            if (found.length >= limit) break;
           }
         }
       }
-      return createQueryEnvelope({ query: { tool: name, contextId: input.contextId, subject }, results: found, limit });
+      return createQueryEnvelope({ query: { tool: name, contextId: input.contextId, subject }, results: found, limit, warnings });
     } catch (err) {
       return toolError(name, limit, err);
     }
@@ -317,6 +370,10 @@ function disconnectedState(): ConnectionState {
 
 function stringInput(value: unknown): string | undefined {
   return typeof value === "string" && value ? value : undefined;
+}
+
+function numberInput(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
 function matchesString(actual: string | null | undefined, expected: unknown): boolean {
