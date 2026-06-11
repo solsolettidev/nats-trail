@@ -70,6 +70,7 @@ Every panel handles: loading, empty, error, connected and disconnected.
 - CLI `mcp run` can also forward tool calls to the bridge with `NATS_TRAIL_API`.
 - CLI exposes human-friendly aliases for agent-safe filters, streams, consumers, message search,
   message detail, trace and DLQ search.
+- CLI can listen to NATS Core subjects and replay/tail JetStream streams over the bridge WebSocket.
 - Sentry enrichment is exposed as both `natstrail.enrich_sentry` and `sentry enrich` in the CLI.
 - Saved filters are persisted under `data/filters.json` and exposed through `/api/filters`.
 - MCP runtime executes `natstrail.list_contexts`, `natstrail.list_filters`, `natstrail.run_filter`,

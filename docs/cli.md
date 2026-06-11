@@ -24,7 +24,9 @@ npm run cli -- filters list --limit 50 --agent
 npm run cli -- filter run --context-id local --filter failed-refreshes --limit 20 --agent
 npm run cli -- streams list --context-id local --limit 50 --agent
 npm run cli -- stream info --context-id local --stream SOURCE_EVENTS --limit 1 --agent
+npm run cli -- stream tail --context-id local --stream SOURCE_EVENTS --limit 20 --timeout-ms 30000 --agent
 npm run cli -- consumers list --context-id local --stream SOURCE_EVENTS --limit 50 --agent
+npm run cli -- subject listen --context-id local --subject 'orders.>' --limit 20 --timeout-ms 30000 --agent
 npm run cli -- messages search --context-id local --stream SOURCE_EVENTS --request-id req-123 --limit 20 --agent
 npm run cli -- message detail --context-id local --stream SOURCE_EVENTS --seq 42 --limit 1 --agent
 npm run cli -- trace --context-id local --request-id req-123 --limit 20 --agent
@@ -46,13 +48,16 @@ the only configured context. When `NATS_TRAIL_API` is set, live commands auto-co
 that context before running. Use `--no-auto-connect` to disable that behavior.
 
 The higher-level CLI aliases (`connection status`, `audit list`, `filters list`, `filter run`, `streams list`,
-`stream info`, `consumers list`, `messages search`, `message detail`, `trace`, `dlq search`,
-`sentry enrich`) use the same forwarding behavior and output envelopes.
+`stream info`, `stream tail`, `consumers list`, `subject listen`, `messages search`,
+`message detail`, `trace`, `dlq search`, `sentry enrich`) use the same forwarding behavior and
+output envelopes.
 If `--context-id` is omitted, the CLI uses the selected context from shared preferences, or the only
 configured context when there is exactly one.
 
 Agent message records are intentionally compact: subject, timestamp, stream/sequence, bounded
 payload, truncation flag, JSON when safe, and extracted request/correlation IDs.
+Live commands (`subject listen`, `stream tail`) use the bridge WebSocket and stop at `--limit` or
+`--timeout-ms`.
 The MCP runtime enforces tool timeouts; Integration API calls are audited by the server.
 When CLI forwards through `NATS_TRAIL_API`, audit entries use origin `cli`.
 
