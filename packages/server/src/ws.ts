@@ -1,9 +1,12 @@
 import type { Server } from "node:http";
+import type { IncomingMessage } from "node:http";
 import { WebSocketServer, type WebSocket } from "ws";
 import { DeliverPolicy, AckPolicy } from "nats";
-import type { Subscription, ConsumerMessages, ConsumerConfig } from "nats";
+import type { NatsConnection, Subscription, ConsumerMessages, ConsumerConfig } from "nats";
 import { parseMessage, normalizeError } from "@nats-trail/core";
-import { connectionManager } from "./connection.js";
+import { connectionPool } from "./connection.js";
+import { authEnabled, authenticate } from "./auth.js";
+import { loadPreferences } from "./storage.js";
 
 const decoder = new TextDecoder();
 
@@ -12,13 +15,32 @@ interface ClientMsg {
   subject?: string;
   stream?: string;
   filterSubjects?: string[];
+  /** Pool context to read from; defaults to the selected context. */
+  contextId?: string;
+}
+
+function wsIdentity(req: IncomingMessage): string | null {
+  const url = new URL(req.url ?? "/", "http://localhost");
+  const raw = req.headers.authorization ?? url.searchParams.get("token") ?? undefined;
+  return authenticate(raw)?.name ?? null;
+}
+
+function resolveConnection(contextId?: string): NatsConnection | null {
+  return connectionPool.getConnection(contextId ?? loadPreferences().selectedContextId);
 }
 
 /** Attach the live-subscription WebSocket server at /ws. */
 export function attachWebSocket(server: Server): void {
   const wss = new WebSocketServer({ server, path: "/ws" });
 
-  wss.on("connection", (ws: WebSocket) => {
+  wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
+    if (authEnabled() && !wsIdentity(req)) {
+      if (ws.readyState === ws.OPEN) {
+        ws.send(JSON.stringify({ type: "error", error: { code: "unauthorized", message: "missing or invalid bearer token", retriable: false } }));
+      }
+      ws.close(4401, "unauthorized");
+      return;
+    }
     const subs = new Map<string, Subscription>();
     const jsSubs = new Map<string, JsTail>();
 
@@ -35,11 +57,11 @@ export function attachWebSocket(server: Server): void {
       }
 
       if (msg.action === "subscribe" && msg.subject) {
-        subscribe(msg.subject);
+        subscribe(msg.subject, msg.contextId);
       } else if (msg.action === "unsubscribe" && msg.subject) {
         unsubscribe(msg.subject);
       } else if (msg.action === "js_subscribe" && msg.stream) {
-        jsSubscribe(msg.stream, msg.filterSubjects ?? []);
+        jsSubscribe(msg.stream, msg.filterSubjects ?? [], msg.contextId);
       } else if (msg.action === "js_unsubscribe" && msg.stream) {
         jsUnsubscribe(msg.stream);
       }
@@ -52,9 +74,8 @@ export function attachWebSocket(server: Server): void {
       jsSubs.clear();
     });
 
-    function deleteConsumer(stream: string, name: string | null): void {
+    function deleteConsumer(nc: NatsConnection | null, stream: string, name: string | null): void {
       if (!name) return;
-      const nc = connectionManager.getConnection();
       nc?.jetstreamManager()
         .then((jsm) => jsm.consumers.delete(stream, name))
         .catch(() => {});
@@ -63,11 +84,11 @@ export function attachWebSocket(server: Server): void {
     function stopTail(tail: JsTail): void {
       tail.stopped = true;
       tail.iter?.stop();
-      deleteConsumer(tail.stream, tail.consumerName);
+      deleteConsumer(tail.nc, tail.stream, tail.consumerName);
     }
 
-    function subscribe(subject: string) {
-      const nc = connectionManager.getConnection();
+    function subscribe(subject: string, contextId?: string) {
+      const nc = resolveConnection(contextId);
       if (!nc) {
         return send({ type: "error", error: { code: "not_connected", message: "Not connected to NATS" } });
       }
@@ -114,14 +135,14 @@ export function attachWebSocket(server: Server): void {
     // We create the consumer explicitly (instead of an ordered consumer) because
     // nats.js ordered consumers don't work against this server: consume() never
     // resolves and delivers nothing. A plain ephemeral consumer pulled by name works.
-    async function jsSubscribe(stream: string, filterSubjects: string[]) {
-      const nc = connectionManager.getConnection();
+    async function jsSubscribe(stream: string, filterSubjects: string[], contextId?: string) {
+      const nc = resolveConnection(contextId);
       if (!nc) {
         return send({ type: "error", error: { code: "not_connected", message: "Not connected to NATS" } });
       }
       if (jsSubs.has(stream)) return;
 
-      const tail: JsTail = { stopped: false, iter: null, stream, consumerName: null };
+      const tail: JsTail = { stopped: false, iter: null, stream, consumerName: null, nc };
       jsSubs.set(stream, tail);
       send({ type: "js_subscribed", stream });
 
@@ -143,7 +164,7 @@ export function attachWebSocket(server: Server): void {
         const iter = await consumer.consume();
         if (tail.stopped) {
           iter.stop();
-          deleteConsumer(stream, ci.name);
+          deleteConsumer(nc, stream, ci.name);
           return;
         }
         tail.iter = iter;
@@ -175,7 +196,7 @@ export function attachWebSocket(server: Server): void {
         });
       } catch (err) {
         console.error(`[js_subscribe] ${stream} setup error:`, err);
-        deleteConsumer(stream, tail.consumerName);
+        deleteConsumer(nc, stream, tail.consumerName);
         jsSubs.delete(stream);
         send({ type: "error", error: normalizeError(err) });
       }
@@ -197,4 +218,6 @@ interface JsTail {
   iter: ConsumerMessages | null;
   stream: string;
   consumerName: string | null;
+  /** Connection the tail was created on, so teardown targets the right context. */
+  nc: NatsConnection | null;
 }

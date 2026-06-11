@@ -26,10 +26,10 @@ import {
 const decoder = new TextDecoder();
 
 /**
- * Single active NATS connection for the process (v0). Owns connection state,
+ * One managed NATS connection bound to a single context. Owns connection state,
  * JetStream access and status tracking. The UI never touches NATS directly.
  */
-class ConnectionManager {
+class ManagedConnection {
   private nc: NatsConnection | null = null;
   private state: ConnectionState = {
     status: "disconnected",
@@ -334,4 +334,69 @@ function consumerIssues(ackPending: number, redelivered: number, replicaLag: boo
   return issues;
 }
 
-export const connectionManager = new ConnectionManager();
+/**
+ * Connection pool keyed by contextId. Each context owns an independent NATS
+ * connection, so an agent inspecting one context never disconnects another
+ * caller (e.g. the UI watching prod) from its context.
+ */
+class ConnectionPool {
+  private connections = new Map<string, ManagedConnection>();
+
+  async connect(ctx: Context): Promise<ConnectionState> {
+    const existing = this.connections.get(ctx.id);
+    if (existing?.getState().status === "connected") return existing.getState();
+    const conn = existing ?? new ManagedConnection();
+    this.connections.set(ctx.id, conn);
+    return conn.connectTo(ctx);
+  }
+
+  async disconnect(contextId: string): Promise<void> {
+    const conn = this.connections.get(contextId);
+    this.connections.delete(contextId);
+    await conn?.disconnect();
+  }
+
+  getState(contextId: string | null): ConnectionState {
+    if (contextId) {
+      const conn = this.connections.get(contextId);
+      if (conn) return conn.getState();
+    }
+    return { status: "disconnected", contextId, url: null, error: null, reconnects: 0 };
+  }
+
+  getStates(): ConnectionState[] {
+    return [...this.connections.values()].map((conn) => conn.getState());
+  }
+
+  isConnected(contextId: string): boolean {
+    return this.connections.get(contextId)?.getState().status === "connected";
+  }
+
+  getConnection(contextId: string | null): NatsConnection | null {
+    return contextId ? (this.connections.get(contextId)?.getConnection() ?? null) : null;
+  }
+
+  listStreams(contextId: string): Promise<Stream[]> {
+    return this.require(contextId).listStreams();
+  }
+
+  listConsumers(contextId: string, stream: string): Promise<Consumer[]> {
+    return this.require(contextId).listConsumers(stream);
+  }
+
+  getStreamMessage(contextId: string, stream: string, seq: number): Promise<Message | null> {
+    return this.require(contextId).getStreamMessage(stream, seq);
+  }
+
+  queryStreamMessages(contextId: string, query: StreamQuery): Promise<StreamQueryPage> {
+    return this.require(contextId).queryStreamMessages(query);
+  }
+
+  private require(contextId: string): ManagedConnection {
+    const conn = this.connections.get(contextId);
+    if (!conn) throw new Error(`Not connected to NATS: ${contextId || "no context"}`);
+    return conn;
+  }
+}
+
+export const connectionPool = new ConnectionPool();

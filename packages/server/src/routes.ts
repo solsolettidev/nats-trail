@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Request, type Response, type NextFunction } from "express";
 import {
   createQueryEnvelope,
   normalizeError,
@@ -8,7 +8,8 @@ import {
   type Filter,
 } from "@nats-trail/core";
 import { executeMcpTool, mcpTools } from "@nats-trail/mcp";
-import { connectionManager } from "./connection.js";
+import { connectionPool } from "./connection.js";
+import { authEnabled, authenticate } from "./auth.js";
 import {
   loadContexts,
   appendAuditEntry,
@@ -29,6 +30,21 @@ router.get("/health", (_req, res) => {
 
 // ---- Integration API -------------------------------------------------------
 
+// Bearer auth: enforced when at least one token is configured. The matched
+// token name becomes the audit identity, replacing trust in the origin header.
+function integrationAuth(req: Request, res: Response, next: NextFunction): void {
+  const raw = req.header("authorization") ?? (typeof req.query.token === "string" ? req.query.token : undefined);
+  const identity = authenticate(raw);
+  if (!identity && authEnabled()) {
+    res.status(401).json({ error: normalizeError("missing or invalid bearer token") });
+    return;
+  }
+  res.locals.identity = identity?.name ?? null;
+  next();
+}
+
+router.use("/integration", integrationAuth);
+
 router.get("/integration/tools", (req, res) => {
   res.json(createQueryEnvelope({ query: { route: req.path }, results: mcpTools, limit: Number(req.query.limit) || 50 }));
 });
@@ -43,6 +59,7 @@ router.post("/integration/tools/:name", async (req, res) => {
   appendAuditEntry({
     timestamp: Date.now(),
     origin: readAuditOrigin(req.header("x-nats-trail-origin")),
+    identity: (res.locals.identity as string | null) ?? null,
     tool: req.params.name,
     contextId: typeof input.contextId === "string" ? input.contextId : null,
     resultCount: envelope.summary.returned,
@@ -57,6 +74,7 @@ router.post("/integration/enrich/sentry", async (req, res) => {
   appendAuditEntry({
     timestamp: Date.now(),
     origin: readAuditOrigin(req.header("x-nats-trail-origin")),
+    identity: (res.locals.identity as string | null) ?? null,
     tool: "sentry.enrich",
     contextId: typeof input.contextId === "string" ? input.contextId : null,
     resultCount: envelope.summary.returned,
@@ -142,29 +160,39 @@ router.put("/preferences", (req, res) => {
 // ---- Connection -----------------------------------------------------------
 
 router.get("/connection", (_req, res) => {
-  res.json(connectionManager.getState());
+  res.json(connectionPool.getState(selectedContextId()));
+});
+
+router.get("/connections", (_req, res) => {
+  res.json(connectionPool.getStates());
 });
 
 router.post("/connect", async (req, res) => {
-  const { contextId } = req.body as { contextId?: string };
+  const { contextId, select } = req.body as { contextId?: string; select?: boolean };
   const ctx = loadContexts().find((c) => c.id === contextId);
   if (!ctx) return res.status(404).json({ error: normalizeError("context not found") });
-  const state = await connectionManager.connectTo(ctx);
-  const prefs = loadPreferences();
-  savePreferences({ ...prefs, selectedContextId: ctx.id });
+  const state = await connectionPool.connect(ctx);
+  // Only explicit callers (the UI) move the selected context; agent/CLI
+  // auto-connects must never steal the selection from another caller.
+  if (select === true) {
+    const prefs = loadPreferences();
+    savePreferences({ ...prefs, selectedContextId: ctx.id });
+  }
   res.json(state);
 });
 
-router.post("/disconnect", async (_req, res) => {
-  await connectionManager.disconnect();
-  res.json(connectionManager.getState());
+router.post("/disconnect", async (req, res) => {
+  const { contextId } = (req.body ?? {}) as { contextId?: string };
+  const target = contextId ?? selectedContextId();
+  if (target) await connectionPool.disconnect(target);
+  res.json(connectionPool.getState(target));
 });
 
 // ---- JetStream ------------------------------------------------------------
 
-router.get("/streams", async (_req, res) => {
+router.get("/streams", async (req, res) => {
   try {
-    res.json(await connectionManager.listStreams());
+    res.json(await connectionPool.listStreams(requestContextId(req)));
   } catch (err) {
     res.status(409).json({ error: normalizeError(err) });
   }
@@ -172,11 +200,20 @@ router.get("/streams", async (_req, res) => {
 
 router.get("/streams/:name/consumers", async (req, res) => {
   try {
-    res.json(await connectionManager.listConsumers(req.params.name));
+    res.json(await connectionPool.listConsumers(requestContextId(req), req.params.name));
   } catch (err) {
     res.status(409).json({ error: normalizeError(err) });
   }
 });
+
+function selectedContextId(): string | null {
+  return loadPreferences().selectedContextId;
+}
+
+function requestContextId(req: Request): string {
+  const fromQuery = typeof req.query.contextId === "string" ? req.query.contextId : null;
+  return fromQuery ?? selectedContextId() ?? "";
+}
 
 function slug(s: string): string {
   return (
@@ -188,17 +225,19 @@ function slug(s: string): string {
 }
 
 function executeIntegrationTool(name: string, input: Record<string, unknown>) {
-  const state = connectionManager.getState();
+  const requested = typeof input.contextId === "string" && input.contextId ? input.contextId : null;
+  const target = requested ?? selectedContextId() ?? "";
   return executeMcpTool(name, input, {
     contexts: loadContexts(),
     filters: loadFilters(),
     auditEntries: loadAuditEntries(),
-    connectionState: state,
-    activeContextId: state.contextId,
-    listStreams: () => connectionManager.listStreams(),
-    listConsumers: (stream) => connectionManager.listConsumers(stream),
-    getStreamMessage: (stream, seq) => connectionManager.getStreamMessage(stream, seq),
-    queryStreamMessages: (query) => connectionManager.queryStreamMessages(query),
+    connectionState: connectionPool.getState(target || null),
+    connectionStates: connectionPool.getStates(),
+    activeContextId: requested && connectionPool.isConnected(requested) ? requested : null,
+    listStreams: () => connectionPool.listStreams(target),
+    listConsumers: (stream) => connectionPool.listConsumers(target, stream),
+    getStreamMessage: (stream, seq) => connectionPool.getStreamMessage(target, stream, seq),
+    queryStreamMessages: (query) => connectionPool.queryStreamMessages(target, query),
   });
 }
 
