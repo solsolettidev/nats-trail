@@ -35,6 +35,8 @@ const DEFAULT_PREFS: Preferences = {
   messageViewerMode: "tree",
 };
 
+const NUMERIC_FLAGS = new Set(["limit", "seq", "timeoutMs", "fromTs", "toTs", "maxScan"]);
+
 const LIVE_TOOLS = new Set([
   "natstrail.run_filter",
   "natstrail.list_streams",
@@ -483,7 +485,7 @@ function readNamedArgs(args: string[]): Record<string, unknown> {
       continue;
     }
     if (!value || value.startsWith("--")) fail(`Missing value for ${key}`);
-    input[inputKey] = inputKey === "limit" || inputKey === "seq" || inputKey === "timeoutMs" ? Number(value) : value;
+    input[inputKey] = NUMERIC_FLAGS.has(inputKey) ? Number(value) : value;
     i += 1;
   }
   return input;
@@ -684,7 +686,10 @@ Commands:
 
 Options:
   --output text|json|ndjson   Output format (default: text)
-  --agent                     Force JSON envelopes for agent-safe usage`);
+  --agent                     Force JSON envelopes for agent-safe usage
+  --from-ts / --to-ts <ms>    Bound stream queries to a time window (epoch ms)
+  --cursor <seq>              Resume a truncated stream query from nextCursor
+  --max-scan <n>              Max messages scanned per query (default 10000)`);
 }
 
 function printBanner(): void {
