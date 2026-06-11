@@ -98,3 +98,10 @@ See [`docs/development.md`](docs/development.md).
 Credentials live in contexts stored locally (`data/`, git-ignored). The UI never holds the
 NATS connection directly — it always goes through the API bridge. Never commit `.env` or real
 credentials.
+
+The bridge keeps one NATS connection per context (a pool), so agents and the UI can inspect
+different contexts concurrently without disconnecting each other.
+
+To require auth on the Integration API and the live WebSocket, configure bearer tokens via
+`NATS_TRAIL_TOKENS=name:token[,name2:token2]` or `data/tokens.json`. Audit entries then record
+the authenticated token name per call. Clients send the token from `NATS_TRAIL_TOKEN`.

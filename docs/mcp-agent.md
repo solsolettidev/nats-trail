@@ -135,7 +135,14 @@ Initial read-only endpoints:
 - `POST /api/integration/tools/:name`
 - `POST /api/integration/enrich/sentry`
 
-JetStream tools require the requested `contextId` to match the bridge's active connected context.
+JetStream tools require the requested `contextId` to be connected in the bridge connection pool.
+Connecting one context never disconnects another, so agents and the UI can inspect different
+contexts at the same time. `natstrail.get_connection_status` returns every pooled connection state.
+
+When the bridge has tokens configured (`NATS_TRAIL_TOKENS` or `data/tokens.json`), Integration API
+calls require `Authorization: Bearer <token>` and audit entries record the matched token name as
+`identity` — the authenticated identity replaces trust in the self-reported origin header. The CLI
+and the stdio MCP server read the token from `NATS_TRAIL_TOKEN`.
 Message outputs are agent-friendly: payloads are bounded, JSON is omitted when the payload had to
 be truncated, and common `request_id` / `correlation_id` fields are extracted when present.
 

@@ -42,11 +42,37 @@ It talks to the API bridge over HTTP (state, lists) and WebSocket (live messages
 Express + `ws`. Responsibilities:
 
 - expose HTTP and WebSocket endpoints for the UI
-- manage NATS/JetStream connection state per process
+- manage a **connection pool keyed by contextId** — each context owns an independent
+  NATS connection, so an agent querying `local` never disconnects the UI from `prod`
 - normalize errors into a stable shape (`core.normalizeError`)
 - enforce limits (max results, max buffered messages)
 - protect credentials (they never leave the server in API responses)
+- enforce **bearer-token auth** on the Integration API and the WebSocket endpoint
+  when tokens are configured
 - prepare the product for future CLI and MCP usage (same core calls)
+
+The UI keeps a single *selected* context (shared preferences). `POST /api/connect`
+only moves the selection when the caller sends `select: true` (the UI does); CLI and
+agent auto-connects join the pool without stealing the selection. `GET /api/connection`
+returns the selected context's state, `GET /api/connections` returns every pooled state,
+and `POST /api/disconnect` accepts an optional `contextId`. JetStream endpoints and the
+WebSocket `subscribe` / `js_subscribe` actions accept an optional `contextId` and default
+to the selected context.
+
+### Bridge auth
+
+Tokens come from `NATS_TRAIL_TOKENS` (comma-separated `name:token` pairs) or
+`data/tokens.json` (`[{ "name": "ci-agent", "token": "..." }]`, git-ignored). With no
+token configured, auth is disabled for local development. With at least one token:
+
+- `/api/integration/*` requires `Authorization: Bearer <token>` (or `?token=`).
+- `/ws` requires the token via `Authorization` header or `?token=` query parameter.
+- Audit entries record the matched token name as `identity`, which is the
+  authenticated caller identity — the self-reported `x-nats-trail-origin` header is
+  kept only as a transport hint.
+
+Token comparison is constant-time. Clients (CLI, stdio MCP server) send the token from
+the `NATS_TRAIL_TOKEN` environment variable.
 
 ### Core (`packages/core`)
 

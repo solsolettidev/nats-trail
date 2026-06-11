@@ -47,6 +47,17 @@ For live commands, the CLI detects `--context-id` automatically from the selecte
 the only configured context. When `NATS_TRAIL_API` is set, live commands auto-connect the bridge to
 that context before running. Use `--no-auto-connect` to disable that behavior.
 
+The bridge keeps one connection per context (a pool), so CLI auto-connects never disconnect the UI
+or other agents from their context, and `connection disconnect --context-id <id>` only closes that
+context's connection. `connection status` lists every pooled connection.
+
+If the bridge has auth enabled, set `NATS_TRAIL_TOKEN` and the CLI sends it as a bearer token on
+HTTP calls and as `?token=` on the live WebSocket:
+
+```bash
+NATS_TRAIL_API=http://localhost:4000 NATS_TRAIL_TOKEN=<token> npm run cli -- streams list --context-id local --limit 50 --agent
+```
+
 The higher-level CLI aliases (`connection status`, `audit list`, `filters list`, `filter run`, `streams list`,
 `stream info`, `stream tail`, `consumers list`, `subject listen`, `messages search`,
 `message detail`, `trace`, `dlq search`, `sentry enrich`) use the same forwarding behavior and
