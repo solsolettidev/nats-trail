@@ -54,6 +54,7 @@ Every panel handles: loading, empty, error, connected and disconnected.
 
 - Query Engine contracts in core: stable envelopes, mandatory limits, truncation helpers and structured errors.
 - CLI package (`@nats-trail/cli`) with `nats-ui` / `nats-trail` command names reserved.
+- CLI interactive shell with `NATS-TRAIL CLI` ASCII banner and persistent `trail>` prompt.
 - Reuses UI-created local contexts from `data/contexts.json` or `NATS_TRAIL_DATA`.
 - Supports `contexts list`, `context use <id-or-name>` and `context current`.
 - Supports text, JSON, NDJSON and `--agent` JSON envelope output for current commands.

@@ -60,6 +60,7 @@ See [`docs/features.md`](docs/features.md).
 ## v2 Interfaces
 
 ```bash
+npm run cli
 npm run cli -- contexts list
 npm run cli -- context use local
 npm run cli -- context current --output json

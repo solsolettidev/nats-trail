@@ -6,6 +6,7 @@ MCP agents should prefer explicit MCP tools instead of free-form terminal comman
 ## Run
 
 ```bash
+npm run cli
 npm run cli -- contexts list
 npm run cli -- context use local
 npm run cli -- context current --output json
@@ -48,6 +49,14 @@ The MCP runtime enforces tool timeouts; Integration API calls are audited by the
 When CLI forwards through `NATS_TRAIL_API`, audit entries use origin `cli`.
 
 The future installed binary name is `nats-ui` (`nats-trail` is also reserved).
+
+Running the CLI without arguments opens an interactive shell with the same commands:
+
+```txt
+trail> connection status --limit 1 --agent
+trail> streams list --context-id local --limit 50 --agent
+trail> exit
+```
 
 ## Contexts
 
