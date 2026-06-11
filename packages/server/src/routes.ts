@@ -198,7 +198,7 @@ function executeIntegrationTool(name: string, input: Record<string, unknown>) {
     listStreams: () => connectionManager.listStreams(),
     listConsumers: (stream) => connectionManager.listConsumers(stream),
     getStreamMessage: (stream, seq) => connectionManager.getStreamMessage(stream, seq),
-    searchStreamMessages: (toolInput) => connectionManager.searchStreamMessages(toolInput),
+    queryStreamMessages: (query) => connectionManager.queryStreamMessages(query),
   });
 }
 

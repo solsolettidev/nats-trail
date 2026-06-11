@@ -1,20 +1,26 @@
 import {
   connect,
   credsAuthenticator,
+  AckPolicy,
+  DeliverPolicy,
   type NatsConnection,
   type ConnectionOptions,
+  type ConsumerConfig,
   type JetStreamManager,
 } from "nats";
 import { readFileSync } from "node:fs";
 import {
   normalizeError,
+  normalizeScan,
   parseMessage,
-  subjectMatches,
   type Context,
   type ConnectionState,
   type Stream,
+  type StreamQuery,
+  type StreamQueryPage,
   type Consumer,
   type Message,
+  type QueryWarning,
 } from "@nats-trail/core";
 
 const decoder = new TextDecoder();
@@ -162,18 +168,104 @@ class ConnectionManager {
     return msg ? directToMessage(msg) : null;
   }
 
-  async searchStreamMessages(input: { stream: string; subject?: string; limit: number }): Promise<Message[]> {
-    const streams = await this.listStreams();
-    const stream = streams.find((item) => item.name === input.stream);
-    if (!stream) return [];
-    const out: Message[] = [];
-    for (let seq = stream.lastSeq; seq >= stream.firstSeq && out.length < input.limit; seq--) {
-      const msg = await this.getStreamMessage(stream.name, seq).catch(() => null);
-      if (!msg) continue;
-      if (input.subject && !subjectMatches(input.subject, msg.subject)) continue;
-      out.push(msg);
+  /**
+   * Scan one stream through a temporary ephemeral consumer (ack-none), filtered
+   * server-side by subject and bounded by a scan budget. Messages are fetched in
+   * batches instead of one round trip per sequence, so this works on large
+   * streams. Returns a cursor (next stream sequence) when the scan stopped
+   * before the end of the window.
+   */
+  async queryStreamMessages(query: StreamQuery): Promise<StreamQueryPage> {
+    const jsm = await this.requireJsm();
+    const nc = this.nc!;
+    const info = await jsm.streams.info(query.stream);
+    const firstSeq = info.state.first_seq;
+    const lastSeq = info.state.last_seq;
+    const maxScan = normalizeScan(query.maxScan);
+    const warnings: QueryWarning[] = [];
+
+    if (info.state.messages === 0 || (query.startSeq != null && query.startSeq > lastSeq)) {
+      return { messages: [], nextCursor: null, scanned: 0, warnings };
     }
-    return out;
+
+    const cfg: Partial<ConsumerConfig> = {
+      ack_policy: AckPolicy.None,
+      inactive_threshold: 30_000_000_000, // 30s in ns; teardown also deletes it
+    };
+    if (query.subject) cfg.filter_subject = query.subject;
+    if (query.startSeq != null) {
+      cfg.deliver_policy = DeliverPolicy.StartSequence;
+      cfg.opt_start_seq = Math.max(query.startSeq, firstSeq);
+    } else if (query.fromTs != null) {
+      cfg.deliver_policy = DeliverPolicy.StartTime;
+      cfg.opt_start_time = new Date(query.fromTs).toISOString();
+    } else {
+      // No explicit window: bound the scan to the most recent maxScan sequences.
+      const startSeq = Math.max(firstSeq, lastSeq - maxScan + 1);
+      cfg.deliver_policy = DeliverPolicy.StartSequence;
+      cfg.opt_start_seq = startSeq;
+      if (startSeq > firstSeq) {
+        warnings.push({
+          code: "query.window_default",
+          message: `Scanned only the most recent ${maxScan} sequences (${startSeq}-${lastSeq}). Pass fromTs or cursor to inspect older history.`,
+        });
+      }
+    }
+
+    const ci = await jsm.consumers.add(query.stream, cfg);
+    const consumer = await nc.jetstream().consumers.get(query.stream, ci.name);
+    const messages: Message[] = [];
+    let scanned = 0;
+    let nextCursor: string | null = null;
+    try {
+      scan: while (scanned < maxScan && messages.length < query.limit) {
+        const batch = await consumer.fetch({
+          max_messages: Math.min(500, maxScan - scanned),
+          expires: 2000,
+        });
+        let delivered = 0;
+        let drained = false;
+        for await (const m of batch) {
+          delivered++;
+          scanned++;
+          const ts = m.info?.timestampNanos ? Math.round(m.info.timestampNanos / 1e6) : Date.now();
+          // Stream order is chronological, so past the window end nothing else matches.
+          if (query.toTs != null && ts > query.toTs) break scan;
+          messages.push(
+            parseMessage({
+              subject: m.subject,
+              data: decoder.decode(m.data),
+              timestamp: ts,
+              size: m.data.length,
+              seq: m.seq,
+            }),
+          );
+          const more = (m.info?.pending ?? 0) > 0;
+          if (messages.length >= query.limit) {
+            if (more) nextCursor = String(m.seq + 1);
+            break scan;
+          }
+          if (scanned >= maxScan) {
+            if (more) {
+              nextCursor = String(m.seq + 1);
+              warnings.push({
+                code: "query.scan_truncated",
+                message: `Scan stopped after ${scanned} messages; continue with cursor ${m.seq + 1}.`,
+              });
+            }
+            break scan;
+          }
+          if (!more) {
+            drained = true;
+            break;
+          }
+        }
+        if (delivered === 0 || drained) break;
+      }
+    } finally {
+      await jsm.consumers.delete(query.stream, ci.name).catch(() => {});
+    }
+    return { messages, nextCursor, scanned, warnings };
   }
 
   private async requireJsm(): Promise<JetStreamManager> {
