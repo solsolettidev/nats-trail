@@ -13,7 +13,9 @@
   },
   "dependencies": {
     "@nats-trail/core": "*",
-    "@nats-trail/mcp": "*"
+    "@nats-trail/mcp": "*",
+    "@types/ws": "^8.18.1",
+    "ws": "^8.21.0"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",

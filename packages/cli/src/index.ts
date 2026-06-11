@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { stdin as input, stdout as output } from "node:process";
 import { createQueryEnvelope, sanitizeContext, validateContext, type AuthType, type ConnectionState, type Context, type Environment, type Filter } from "@nats-trail/core";
 import { callIntegrationTool, executeMcpTool, mcpTools } from "@nats-trail/mcp";
+import WebSocket from "ws";
 
 type Output = "text" | "json" | "ndjson";
 
@@ -142,6 +143,11 @@ async function runCommand(args: string[]): Promise<void> {
     return;
   }
 
+  if (command[0] === "subject" && command[1] === "listen") {
+    await listenSubject(command.slice(2), output);
+    return;
+  }
+
   if (command[0] === "streams" && command[1] === "list") {
     await runMcpTool("natstrail.list_streams", command.slice(2), output);
     return;
@@ -149,6 +155,11 @@ async function runCommand(args: string[]): Promise<void> {
 
   if (command[0] === "stream" && command[1] === "info") {
     await runMcpTool("natstrail.get_stream_info", command.slice(2), output);
+    return;
+  }
+
+  if (command[0] === "stream" && command[1] === "tail") {
+    await tailStream(command.slice(2), output);
     return;
   }
 
@@ -385,6 +396,81 @@ async function runMcpTool(name: string | undefined, args: string[], output: Outp
   printJson(envelope);
 }
 
+async function listenSubject(args: string[], output: Output): Promise<void> {
+  const input = readNamedArgs(args);
+  const subject = stringValue(input.subject);
+  if (!subject) return printCliError(output, "subject.listen", "subject listen requires --subject");
+  try {
+    await ensureLiveBridge(input);
+    await collectWsMessages({ action: "subscribe", subject }, "message", input, output, "subject.listen");
+  } catch (err) {
+    printCliError(output, "subject.listen", err instanceof Error ? err.message : String(err));
+  }
+}
+
+async function tailStream(args: string[], output: Output): Promise<void> {
+  const input = readNamedArgs(args);
+  const stream = stringValue(input.stream);
+  if (!stream) return printCliError(output, "stream.tail", "stream tail requires --stream");
+  try {
+    await ensureLiveBridge(input);
+    const filterSubjects = stringValue(input.subject) ? [stringValue(input.subject)] : [];
+    await collectWsMessages({ action: "js_subscribe", stream, filterSubjects }, "js_message", input, output, "stream.tail");
+  } catch (err) {
+    printCliError(output, "stream.tail", err instanceof Error ? err.message : String(err));
+  }
+}
+
+async function ensureLiveBridge(input: Record<string, unknown>): Promise<void> {
+  if (!INTEGRATION_API) throw new Error("live CLI commands require NATS_TRAIL_API=http://localhost:4000");
+  if (!input.contextId) input.contextId = await detectContextId();
+  if (input.noAutoConnect !== true) await ensureBridgeConnected(stringValue(input.contextId));
+}
+
+async function collectWsMessages(subscribe: Record<string, unknown>, messageType: string, input: Record<string, unknown>, output: Output, tool: string): Promise<void> {
+  if (!INTEGRATION_API) fail("NATS_TRAIL_API is required for live commands");
+  const limit = numberValue(input.limit) ?? 50;
+  const timeoutMs = numberValue(input.timeoutMs) ?? 30000;
+  const results: unknown[] = [];
+  const ws = new WebSocket(toWsUrl(INTEGRATION_API));
+  await new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      ws.close();
+      resolve();
+    }, timeoutMs);
+    ws.on("open", () => ws.send(JSON.stringify(subscribe)));
+    ws.on("message", (raw) => {
+      const event = JSON.parse(raw.toString()) as { type?: string; message?: unknown; error?: unknown };
+      if (event.type === "error") {
+        clearTimeout(timer);
+        ws.close();
+        reject(new Error(JSON.stringify(event.error)));
+        return;
+      }
+      if (event.type !== messageType) return;
+      results.push(event.message);
+      if (output === "ndjson") printJsonLine({ type: messageType, message: event.message });
+      else if (output === "text") printLiveMessage(event.message);
+      if (results.length >= limit) {
+        clearTimeout(timer);
+        ws.close();
+        resolve();
+      }
+    });
+    ws.on("error", (err) => {
+      clearTimeout(timer);
+      reject(err);
+    });
+    ws.on("close", () => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
+  if (output === "json") {
+    printJson(createQueryEnvelope({ query: { tool, limit, timeoutMs }, results, limit }));
+  }
+}
+
 function readNamedArgs(args: string[]): Record<string, unknown> {
   const input: Record<string, unknown> = {};
   for (let i = 0; i < args.length; i++) {
@@ -397,7 +483,7 @@ function readNamedArgs(args: string[]): Record<string, unknown> {
       continue;
     }
     if (!value || value.startsWith("--")) fail(`Missing value for ${key}`);
-    input[inputKey] = inputKey === "limit" || inputKey === "seq" ? Number(value) : value;
+    input[inputKey] = inputKey === "limit" || inputKey === "seq" || inputKey === "timeoutMs" ? Number(value) : value;
     i += 1;
   }
   return input;
@@ -489,6 +575,25 @@ function stringValue(value: unknown): string | undefined {
   return typeof value === "string" && value ? value : undefined;
 }
 
+function numberValue(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function toWsUrl(apiUrl: string): string {
+  const url = new URL(apiUrl);
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  url.pathname = "/ws";
+  url.search = "";
+  return url.toString();
+}
+
+function printLiveMessage(value: unknown): void {
+  const msg = value as { subject?: string; timestamp?: number; data?: string; seq?: number };
+  const ts = msg.timestamp ? new Date(msg.timestamp).toISOString() : new Date().toISOString();
+  const seq = msg.seq != null ? ` #${msg.seq}` : "";
+  console.log(`${ts}${seq}\t${msg.subject ?? "-"}\t${msg.data ?? ""}`);
+}
+
 async function bridgeGet<T>(path: string): Promise<T> {
   return bridgeRequest<T>(path, { method: "GET" });
 }
@@ -568,7 +673,9 @@ Commands:
   filter run                 Run a saved filter by --filter
   streams list               List JetStream streams
   stream info                Get one stream summary
+  stream tail                Replay/tail JetStream messages over WebSocket
   consumers list             List stream consumers
+  subject listen             Listen to a NATS Core subject over WebSocket
   messages search            Search JetStream messages through the Query Engine
   message detail             Get one stream message by --stream and --seq
   trace                      Trace by --requestId or --correlationId
