@@ -1,0 +1,9 @@
+* text=auto
+
+# Must stay LF: these run inside Linux containers and runners, where CRLF
+# breaks shell parsing.
+Dockerfile      text eol=lf
+*.yml           text eol=lf
+*.yaml          text eol=lf
+*.sh            text eol=lf
+.dockerignore   text eol=lf
