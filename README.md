@@ -33,14 +33,27 @@ See [`docs/architecture.md`](docs/architecture.md) for the full rationale.
 ```bash
 npm install
 cp config/contexts.example.json data/contexts.json   # optional: seed a context
+npm start
+```
+
+Open http://127.0.0.1:4000 — the server builds on install and serves the UI and the API
+from a single process and a single port.
+
+For development with hot reload:
+
+```bash
 npm run dev
 ```
 
 - UI: http://localhost:5173
 - API bridge: http://localhost:4000
 
-`npm run dev` runs the API bridge and the UI together. The UI proxies `/api` and `/ws`
-to the bridge, so you only open the UI URL.
+`npm run dev` runs the TypeScript watcher, the API bridge and the UI together. The UI
+proxies `/api` and `/ws` to the bridge, so you only open the UI URL.
+
+The server binds to `127.0.0.1` because the local API is unauthenticated and reads the
+stored NATS credentials. Set `NATS_TRAIL_HOST=0.0.0.0` (and bearer tokens, see Security)
+only when you mean to expose it.
 
 ## v1 features
 
@@ -101,6 +114,10 @@ credentials.
 
 The bridge keeps one NATS connection per context (a pool), so agents and the UI can inspect
 different contexts concurrently without disconnecting each other.
+
+The server listens on `127.0.0.1` by default. `/api/contexts`, `/api/connect` and the
+JetStream read routes are unauthenticated local endpoints; only the Integration API and the
+WebSocket accept bearer tokens. Do not bind to a public interface without a proxy in front.
 
 To require auth on the Integration API and the live WebSocket, configure bearer tokens via
 `NATS_TRAIL_TOKENS=name:token[,name2:token2]` or `data/tokens.json`. Audit entries then record
