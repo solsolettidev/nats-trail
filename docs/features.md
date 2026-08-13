@@ -33,7 +33,7 @@
 ### Saved filters
 - Save the current panel filters (subject, text, event type, date range) under a name.
 - Saved filters live in `data/filters.json` and are served by `/api/filters`, so the CLI and
-  MCP tools read the same definitions: `nats-ui filter run --filter <id>`.
+  MCP tools read the same definitions: `nats-trail filter run --filter <id>`.
 - The save form asks for a stream because `natstrail.run_filter` scans a JetStream stream.
 - Click a saved filter to apply it to the panel; delete it with the chip's `x`.
 
@@ -60,7 +60,7 @@ Every panel handles: loading, empty, error, connected and disconnected.
 ## v2 (complete)
 
 - Query Engine contracts in core: stable envelopes, mandatory limits, truncation helpers and structured errors.
-- CLI package (`@nats-trail/cli`) with `nats-ui` / `nats-trail` command names reserved.
+- CLI published as the unscoped `nats-trail` package, exposing the `nats-trail` binary.
 - CLI interactive shell with `NATS-TRAIL CLI` ASCII banner and persistent `trail>` prompt.
 - Reuses UI-created local contexts from `data/contexts.json` or `NATS_TRAIL_DATA`.
 - Supports `contexts list`, `context use <id-or-name>`, `context current`, `context create`,
@@ -95,7 +95,7 @@ Every panel handles: loading, empty, error, connected and disconnected.
 ## Packaging
 
 - `core`, `mcp`, `cli` and `server` compile to `dist/` through TypeScript project references.
-- `nats-ui` / `nats-trail` and `natstrail-mcp` are `bin` entries running under plain `node`.
+- `nats-trail`, `natstrail-server` and `natstrail-mcp` are `bin` entries running under plain `node`.
 - `npm start` serves the built UI and the API from one process on `127.0.0.1:4000`.
 
 ## Planned

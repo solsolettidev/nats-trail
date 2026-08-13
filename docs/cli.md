@@ -6,7 +6,7 @@ MCP agents should prefer explicit MCP tools instead of free-form terminal comman
 ## Limits
 
 Every Query Engine tool needs an explicit limit so agents cannot ask for unbounded results.
-The CLI sends `--limit 50` when you omit it, so `nats-ui streams list` works as typed; pass
+The CLI sends `--limit 50` when you omit it, so `nats-trail streams list` works as typed; pass
 `--limit <n>` (max 200) to change it. The examples below stay explicit on purpose.
 
 ## Run
@@ -92,7 +92,8 @@ Live commands (`subject listen`, `stream tail`) use the bridge WebSocket and sto
 The MCP runtime enforces tool timeouts; Integration API calls are audited by the server.
 When CLI forwards through `NATS_TRAIL_API`, audit entries use origin `cli`.
 
-The future installed binary name is `nats-ui` (`nats-trail` is also reserved).
+The installed binary is `nats-trail`. The `nats-ui` name was dropped: an unrelated package already
+owns it on npm, so shipping that bin would collide on `PATH`.
 
 Running the CLI without arguments opens an interactive shell with the same commands:
 

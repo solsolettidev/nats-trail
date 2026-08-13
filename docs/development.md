@@ -9,7 +9,8 @@ The workspace packages resolve each other through their compiled `dist`, so `npm
 runs `tsc -b --watch` (`dev:types`) alongside the server and the UI. `prepare` builds on
 `npm install`, so a fresh clone can run `npm start` right away.
 
-The `cli` and `mcp` packages ship `bin` entries (`nats-ui` / `nats-trail` and `natstrail-mcp`)
+The `cli`, `server` and `mcp` packages ship `bin` entries (`nats-trail`, `natstrail-server` and
+`natstrail-mcp`)
 pointing at the compiled output, so they run under plain `node` without `tsx`.
 
 ## Layout

@@ -73,10 +73,16 @@ This is the only reason it is reasonable to hand an agent a `prod` context.
 ## Install
 
 ```bash
-npx nats-trail
+npx nats-trail serve
 ```
 
-> Coming with the first npm release — see [Roadmap](#roadmap). Today, from source:
+> Coming with the first npm release — see [Roadmap](#roadmap). Available today:
+
+```bash
+docker compose up          # NATS Trail plus a JetStream-enabled nats-server
+```
+
+Or from source:
 
 ```bash
 git clone https://github.com/solsolettidev/nats-trail
@@ -159,7 +165,7 @@ A filter you save in the UI is the same filter `nats-trail filter run` executes,
 - **`packages/ui`** — React + Vite. Presentation only.
 - **`packages/server`** — Express + WebSocket bridge. Owns connections and credentials.
 - **`packages/core`** — the Query Engine: envelopes, limits, truncation, filters, error normalization.
-- **`packages/cli`** — `nats-trail` / `nats-ui`, plus an interactive shell.
+- **`packages/cli`** — the `nats-trail` binary: query commands, `serve`, and an interactive shell.
 - **`packages/mcp`** — tool contracts and the stdio server.
 
 See [`docs/architecture.md`](docs/architecture.md).
@@ -199,7 +205,7 @@ authenticated token name per call.
 
 Tracked in [`docs/roadmap.md`](docs/roadmap.md).
 
-**Next** — npm and Docker distribution · KV and Object Store browsing · server and cluster health
+**Next** — npm release · KV and Object Store browsing · server and cluster health
 (`varz` / `connz` / `jsz`) · protobuf and msgpack decoding.
 
 **Then** — write operations (publish, purge, delete, consumer and stream management) for the UI and
