@@ -6,7 +6,8 @@
     "build": "tsc -b",
     "dev": "tsx watch src/main.ts",
     "start": "node dist/main.js",
-    "typecheck": "tsc -b"
+    "typecheck": "tsc -b",
+    "prepack": "node ../../scripts/prepare-packages.mjs"
   },
   "dependencies": {
     "@nats-trail/core": "0.1.0",
@@ -35,7 +36,8 @@
     "url": "https://github.com/solsolettidev/nats-trail/issues"
   },
   "files": [
-    "dist"
+    "dist",
+    "!dist/.tsbuildinfo"
   ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
