@@ -29,5 +29,15 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "license": "Apache-2.0",
+  "author": "Sol Soletti",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/solsolettidev/nats-trail.git"
+  },
+  "homepage": "https://github.com/solsolettidev/nats-trail#readme",
+  "bugs": {
+    "url": "https://github.com/solsolettidev/nats-trail/issues"
   }
 }
