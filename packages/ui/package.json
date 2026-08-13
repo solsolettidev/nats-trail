@@ -1,6 +1,6 @@
 {
   "name": "@nats-trail/ui",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,7 +10,7 @@
     "prepack": "node ../../scripts/prepare-packages.mjs && vite build"
   },
   "dependencies": {
-    "@nats-trail/core": "0.1.0",
+    "@nats-trail/core": "0.1.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
@@ -35,5 +35,8 @@
   "files": [
     "dist"
   ],
-  "main": "./dist/index.html"
+  "main": "./dist/index.html",
+  "engines": {
+    "node": ">=20"
+  }
 }

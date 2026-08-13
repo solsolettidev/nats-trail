@@ -1,6 +1,6 @@
 {
   "name": "nats-trail",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "bin": {
     "nats-trail": "./dist/index.js"
@@ -12,11 +12,11 @@
     "prepack": "node ../../scripts/prepare-packages.mjs"
   },
   "dependencies": {
-    "@nats-trail/core": "0.1.0",
-    "@nats-trail/mcp": "0.1.0",
+    "@nats-trail/core": "0.1.1",
+    "@nats-trail/mcp": "0.1.1",
     "@types/ws": "^8.18.1",
     "ws": "^8.21.0",
-    "@nats-trail/server": "0.1.0"
+    "@nats-trail/server": "0.1.1"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",
@@ -47,5 +47,8 @@
     "debugging",
     "cli",
     "agent"
-  ]
+  ],
+  "engines": {
+    "node": ">=20"
+  }
 }

@@ -1,6 +1,6 @@
 {
   "name": "@nats-trail/mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -21,7 +21,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@nats-trail/core": "0.1.0"
+    "@nats-trail/core": "0.1.1"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",
@@ -42,5 +42,8 @@
   "homepage": "https://github.com/solsolettidev/nats-trail#readme",
   "bugs": {
     "url": "https://github.com/solsolettidev/nats-trail/issues"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

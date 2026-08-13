@@ -5,7 +5,7 @@
 <p align="center">
   <a href="https://www.npmjs.com/package/nats-trail"><img alt="npm" src="https://img.shields.io/npm/v/nats-trail?style=flat-square&color=4cc4ff&label=npm"></a>
   <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-4cc4ff?style=flat-square"></a>
-  <img alt="Node >= 20" src="https://img.shields.io/badge/node-%3E%3D20-8b97a7?style=flat-square">
+  <a href="https://www.npmjs.com/package/nats-trail"><img alt="Node version" src="https://img.shields.io/node/v/nats-trail?style=flat-square&color=8b97a7"></a>
   <img alt="TypeScript strict" src="https://img.shields.io/badge/TypeScript-strict-8b97a7?style=flat-square">
   <img alt="Agent surface: read-only" src="https://img.shields.io/badge/agent%20surface-read--only-3fb950?style=flat-square">
 </p>
