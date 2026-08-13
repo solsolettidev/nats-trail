@@ -39,6 +39,13 @@ const DEFAULT_PREFS: Preferences = {
 
 const NUMERIC_FLAGS = new Set(["limit", "seq", "timeoutMs", "fromTs", "toTs", "maxScan"]);
 
+/**
+ * Tools require an explicit limit so agents never ask for unbounded results. A
+ * human typing `nats-ui streams list` should not have to know that, so the CLI
+ * fills one in and still sends it explicitly.
+ */
+const DEFAULT_LIMIT = 50;
+
 const LIVE_TOOLS = new Set([
   "natstrail.run_filter",
   "natstrail.list_streams",
@@ -385,8 +392,9 @@ function printMcpDescribe(output: Output): void {
 }
 
 async function runMcpTool(name: string | undefined, args: string[], output: Output): Promise<void> {
-  if (!name) fail("Usage: nats-ui mcp run <tool-name> --limit <n>");
+  if (!name) fail("Usage: nats-ui mcp run <tool-name> [--limit <n>]");
   const input = readNamedArgs(args);
+  if (input.limit == null) input.limit = DEFAULT_LIMIT;
   if (LIVE_TOOLS.has(name) && !input.contextId) input.contextId = await detectContextId();
   if (INTEGRATION_API && LIVE_TOOLS.has(name) && input.noAutoConnect !== true) {
     await ensureBridgeConnected(stringValue(input.contextId));
@@ -679,7 +687,7 @@ Commands:
   audit list                 List recent audit entries
   mcp tools                  List read-only MCP-friendly commands
   mcp describe               Describe agent response formats and safety
-  mcp run <tool-name>        Run an MCP tool contract locally
+  mcp run <tool-name>        Run an MCP tool contract locally (--limit defaults to 50)
   filters list               List saved filters
   filter run                 Run a saved filter by --filter
   streams list               List JetStream streams
@@ -694,6 +702,7 @@ Commands:
   sentry enrich              Collect trace and DLQ context for Sentry
 
 Options:
+  --limit <n>                 Max results per query (default: 50, max 200)
   --output text|json|ndjson   Output format (default: text)
   --agent                     Force JSON envelopes for agent-safe usage
   --from-ts / --to-ts <ms>    Bound stream queries to a time window (epoch ms)

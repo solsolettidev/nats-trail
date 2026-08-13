@@ -3,6 +3,12 @@
 The v2 CLI is a read-only human interface and fallback automation interface over the Query Engine.
 MCP agents should prefer explicit MCP tools instead of free-form terminal commands.
 
+## Limits
+
+Every Query Engine tool needs an explicit limit so agents cannot ask for unbounded results.
+The CLI sends `--limit 50` when you omit it, so `nats-ui streams list` works as typed; pass
+`--limit <n>` (max 200) to change it. The examples below stay explicit on purpose.
+
 ## Run
 
 ```bash
