@@ -209,3 +209,13 @@ NATS --msg--> bridge --core.parseMessage--> bridge --WS message--> UI
 UI --GET /api/streams--> bridge --JSM.streams.list--> JetStream
 bridge --map to core.Stream--> UI
 ```
+
+## Build layout
+
+The packages are TypeScript project references: `core` <- `mcp` <- (`cli`, `server`). Each one
+compiles to its own `dist/` with declarations, so `cli`, `mcp` and `server` run under plain
+`node` and expose real `bin` entries. `ui` is bundled separately by Vite into
+`packages/ui/dist`, which the server serves when it exists — one process, one port.
+
+Because the packages resolve each other through `dist`, `npm run dev` runs `tsc -b --watch`
+next to the server and the UI dev server.

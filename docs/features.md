@@ -57,7 +57,7 @@ Every panel handles: loading, empty, error, connected and disconnected.
   recent + favorite subjects, recently inspected streams, DLQ subjects and viewer mode.
 - Core panel shows favorite/recent subject chips; JetStream shows recent streams.
 
-## v2 (started)
+## v2 (complete)
 
 - Query Engine contracts in core: stable envelopes, mandatory limits, truncation helpers and structured errors.
 - CLI package (`@nats-trail/cli`) with `nats-ui` / `nats-trail` command names reserved.
@@ -92,9 +92,14 @@ Every panel handles: loading, empty, error, connected and disconnected.
 - Integration API includes `POST /api/integration/enrich/sentry` to collect trace and DLQ context
   for external error tools without exposing NATS credentials.
 
+## Packaging
+
+- `core`, `mcp`, `cli` and `server` compile to `dist/` through TypeScript project references.
+- `nats-ui` / `nats-trail` and `natstrail-mcp` are `bin` entries running under plain `node`.
+- `npm start` serves the built UI and the API from one process on `127.0.0.1:4000`.
+
 ## Planned
 
-- Saved filters, `request_id` / `correlation_id` tracing.
-- Subject, stream, consumer and DLQ read queries from CLI.
-- MCP server implementation over the Query Engine (see `nats-ui-v2.md`).
-- Read-only Integration API for Sentry enrichment, dashboards and external systems.
+- Message replay and stream administration (still deliberately read-only today).
+- Metrics, alerting and multi-user collaboration.
+- Publishing the packages to a registry.

@@ -4,8 +4,9 @@ Visual tool to inspect and debug **NATS Core** and **JetStream**. Think of it as
 "Swagger for messaging systems": connect to a context, subscribe to subjects live,
 read messages with JSON pretty print, and browse streams and consumers.
 
-> **Status:** v2 started — v1 UI + API bridge + core are complete. v2 is centered on a
-> shared Query Engine, explicit MCP tools, a read-only Integration API and a CLI fallback.
+> **Status:** v1 and v2 are complete. v1 is the UI + API bridge + core; v2 adds a shared
+> Query Engine, explicit MCP tools, a read-only Integration API and a CLI fallback. The
+> whole product is read-only by design: it never publishes, deletes or modifies anything.
 
 ## Architecture
 
