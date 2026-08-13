@@ -30,6 +30,13 @@
 - Consumers view per stream: name, durable, pending, last delivered, state and relevant issues.
 - Message buffers are filterable by subject, date range, text and JSON event type.
 
+### Saved filters
+- Save the current panel filters (subject, text, event type, date range) under a name.
+- Saved filters live in `data/filters.json` and are served by `/api/filters`, so the CLI and
+  MCP tools read the same definitions: `nats-ui filter run --filter <id>`.
+- The save form asks for a stream because `natstrail.run_filter` scans a JetStream stream.
+- Click a saved filter to apply it to the panel; delete it with the chip's `x`.
+
 ### DLQ
 - Auto-detects dead-letter subjects per stream (subjects matching `dlq`/`dead`).
 - Supports manually configured DLQ subjects when auto-detection is not enough.

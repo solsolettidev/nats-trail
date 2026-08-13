@@ -4,6 +4,7 @@ import { useJetStreamMessages } from "../useJetStreamMessages.js";
 import { MessageViewer } from "./MessageViewer.js";
 import { MessageFilters, applyFilters, emptyFilters, type FilterState } from "./MessageFilters.js";
 import { MessageList, SplitWorkspace } from "./MessageList.js";
+import { SavedFilters } from "./SavedFilters.js";
 import { Loading, Empty, ErrorState } from "./states.js";
 import { Badge, Icon, fmtBytes, fmtInt } from "./ui.js";
 
@@ -310,6 +311,7 @@ export function JetStreamPanel({ connected }: { connected: boolean }) {
             {live.error && <ErrorState message={live.error} />}
             <div className="overlay__filters">
               <MessageFilters messages={live.messages} value={filters} onChange={setFilters} />
+              <SavedFilters value={filters} onApply={setFilters} stream={live.stream ?? selected ?? ""} />
             </div>
             <div className="overlay__body">
               <SplitWorkspace

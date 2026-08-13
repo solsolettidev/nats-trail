@@ -770,3 +770,10 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: var(--fs-13); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
 }
+
+/* Saved filters (shared with the CLI through /api/filters) */
+.saved { padding: var(--sp-1) var(--sp-2); }
+.saved .input--sm { height: var(--ctrl-h-sm); font-size: var(--fs-sm); max-width: 150px; }
+.saved__del { padding: 0 8px 0 2px; }
+.saved__del:hover { color: var(--err); }
+.saved__error { color: var(--err); font-size: var(--fs-sm); }

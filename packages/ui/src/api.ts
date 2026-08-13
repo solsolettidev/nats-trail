@@ -1,12 +1,13 @@
 import type {
   Context,
   ConnectionState,
+  Filter,
   Stream,
   Consumer,
   Message,
 } from "@nats-trail/core";
 
-export type { Context, ConnectionState, Stream, Consumer, Message };
+export type { Context, ConnectionState, Filter, Stream, Consumer, Message };
 
 export interface Preferences {
   selectedContextId: string | null;
@@ -46,6 +47,12 @@ export const api = {
   connect: (contextId: string) =>
     req<ConnectionState>("/connect", { method: "POST", body: JSON.stringify({ contextId, select: true }) }),
   disconnect: () => req<ConnectionState>("/disconnect", { method: "POST", body: JSON.stringify({}) }),
+
+  listFilters: () => req<Filter[]>("/filters"),
+  saveFilter: (filter: Partial<Filter>) =>
+    req<Filter>("/filters", { method: "POST", body: JSON.stringify(filter) }),
+  deleteFilter: (id: string) =>
+    req<{ ok: boolean }>(`/filters/${encodeURIComponent(id)}`, { method: "DELETE" }),
 
   listStreams: () => req<Stream[]>("/streams"),
   listConsumers: (stream: string) =>

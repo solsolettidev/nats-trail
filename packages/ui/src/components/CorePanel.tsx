@@ -4,6 +4,7 @@ import { useLiveMessages } from "../useLiveMessages.js";
 import { MessageViewer } from "./MessageViewer.js";
 import { MessageFilters, applyFilters, emptyFilters, type FilterState } from "./MessageFilters.js";
 import { MessageList, SplitWorkspace } from "./MessageList.js";
+import { SavedFilters } from "./SavedFilters.js";
 import { Empty, ErrorState } from "./states.js";
 import { Icon } from "./ui.js";
 
@@ -126,7 +127,10 @@ export function CorePanel({ connected, initialSubject, onSubjectChange }: Props)
       {live.error && <ErrorState message={live.error} />}
 
       {live.messages.length > 0 && (
-        <MessageFilters messages={live.messages} value={filters} onChange={setFilters} />
+        <>
+          <MessageFilters messages={live.messages} value={filters} onChange={setFilters} />
+          <SavedFilters value={filters} onApply={setFilters} />
+        </>
       )}
 
       <SplitWorkspace
