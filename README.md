@@ -1,125 +1,220 @@
-# NATS Trail
+<p align="center">
+  <img src="docs/assets/banner.svg" alt="NATS Trail — the agent-native observability layer for NATS and JetStream" width="880">
+</p>
 
-Visual tool to inspect and debug **NATS Core** and **JetStream**. Think of it as a
-"Swagger for messaging systems": connect to a context, subscribe to subjects live,
-read messages with JSON pretty print, and browse streams and consumers.
+<p align="center">
+  <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-4cc4ff?style=flat-square"></a>
+  <img alt="Node >= 20" src="https://img.shields.io/badge/node-%3E%3D20-8b97a7?style=flat-square">
+  <img alt="TypeScript strict" src="https://img.shields.io/badge/TypeScript-strict-8b97a7?style=flat-square">
+  <img alt="Agent surface: read-only" src="https://img.shields.io/badge/agent%20surface-read--only-3fb950?style=flat-square">
+</p>
 
-> **Status:** v1 and v2 are complete. v1 is the UI + API bridge + core; v2 adds a shared
-> Query Engine, explicit MCP tools, a read-only Integration API and a CLI fallback. The
-> whole product is read-only by design: it never publishes, deletes or modifies anything.
+<p align="center">
+  <b>Give an AI agent safe access to your production event bus.</b><br>
+  <sub>A web UI, a CLI and an MCP server over one bounded query engine — so humans and agents debug NATS from the same source of truth.</sub>
+</p>
 
-## Architecture
+---
 
-```
-UI  ->  API bridge  ->  Core  ->  NATS / JetStream
-```
+## Why this exists
 
-- **UI** (`packages/ui`): React + Vite. Presentation, interaction and visual debugging only.
-- **API bridge** (`packages/server`): Express + WebSocket. Owns connection state, exposes
-  HTTP/WS endpoints, normalizes errors, enforces limits, protects credentials.
-- **Core** (`packages/core`): reusable product logic shared by UI, and later CLI and MCP —
-  message parsing, payload formatting, filters, context validation, error normalization.
-- **CLI** (`packages/cli`): v2 command-line interface over shared local state and core logic.
-- **MCP** (`packages/mcp`): explicit read-only tool contracts for agents.
+Every NATS GUI answers *"what is in this stream?"*. That is the easy question.
 
-See [`docs/architecture.md`](docs/architecture.md) for the full rationale.
+The hard question in an event-driven system is **"why did this one flow fail?"** — and answering it
+means following a single `request_id` across four streams, three services and a dead-letter subject.
+Today you do that by hand, with a terminal per stream.
 
-## Requirements
+NATS Trail answers that question directly, and exposes the answer to **agents** as a typed, bounded,
+read-only tool contract — so you can point Claude at production and ask.
 
-- Node.js >= 20
-- A reachable NATS server (local is fine: `nats-server -js`)
-
-## Quick start
+<p align="center">
+  <img src="docs/assets/trace.svg" alt="A single request id traced across four streams, merged chronologically, ending in a dead-letter event" width="880">
+</p>
 
 ```bash
+nats-trail trace --request-id req-8f21c --limit 20
+```
+
+Or, from an agent: *"Why did the refresh for source 8f21c fail?"*
+
+---
+
+## The part nobody else does
+
+There are several NATS MCP servers. They shell out to the `nats` CLI, return raw dumps, and expose
+`publish` and `delete` while describing themselves as read-only.
+
+NATS Trail treats the agent surface as a **contract**, not a wrapper:
+
+| | NATS Trail | Typical NATS MCP server |
+|---|---|---|
+| Tool schemas | Explicit JSON input **and** output schemas per tool | None, or input only |
+| Result size | `limit` is **required**, capped at 200, with cursors | Unbounded |
+| Long scans | `maxScan` budget with explicit truncation warnings | Scans until it dies |
+| Message shape | subject, timestamp, stream/seq, truncation flag, extracted `request_id` / `correlation_id` | Raw payload dump |
+| Errors | Structured envelope with `code` and `retriable` | Stack traces or plain strings |
+| Writes | **Unreachable from the agent runtime** | `publish`, KV and object writes exposed |
+| Audit | Every call logged with origin and token identity | None |
+
+### "Read-only" here means unreachable, not disabled
+
+<p align="center">
+  <img src="docs/assets/boundary.svg" alt="The UI and CLI reach both read and write paths; the MCP runtime is wired only to the read path" width="880">
+</p>
+
+`executeMcpTool()` receives an `McpRuntimeData` interface that exposes only read functions. There is
+no disabled `publish` behind a feature flag — **there is no `publish` to call.** A misconfigured
+environment variable cannot purge your production stream, because the code path does not exist.
+
+This is the only reason it is reasonable to hand an agent a `prod` context.
+
+---
+
+## Install
+
+```bash
+npx nats-trail
+```
+
+> Coming with the first npm release — see [Roadmap](#roadmap). Today, from source:
+
+```bash
+git clone https://github.com/solsolettidev/nats-trail
+cd nats-trail
 npm install
-cp config/contexts.example.json data/contexts.json   # optional: seed a context
 npm start
 ```
 
-Open http://127.0.0.1:4000 — the server builds on install and serves the UI and the API
-from a single process and a single port.
+Open **http://127.0.0.1:4000** — one process serves the UI and the API.
 
-For development with hot reload:
+<details>
+<summary>Development with hot reload</summary>
 
 ```bash
 npm run dev
 ```
 
-- UI: http://localhost:5173
+- UI: http://localhost:5173 (proxies `/api` and `/ws` to the bridge)
 - API bridge: http://localhost:4000
 
-`npm run dev` runs the TypeScript watcher, the API bridge and the UI together. The UI
-proxies `/api` and `/ws` to the bridge, so you only open the UI URL.
+`npm run dev` runs the TypeScript watcher, the API bridge and the UI together.
 
-The server binds to `127.0.0.1` because the local API is unauthenticated and reads the
-stored NATS credentials. Set `NATS_TRAIL_HOST=0.0.0.0` (and bearer tokens, see Security)
-only when you mean to expose it.
+</details>
 
-## v1 features
+**Requirements:** Node.js >= 20 and a reachable NATS server (`nats-server -js` is fine).
 
-- Context selector (local / dev / staging / prod / custom)
-- Context auth with none, user/password, token and `.creds`; TLS CA and server name
-- Connection status (connected / disconnected / errors)
-- NATS Core: subjects panel + live subject subscription
-- Received messages list + message viewer with JSON pretty print, tree view, search and fullscreen
-- JetStream: streams list, stream message inspection, replay/live tail and consumers view
-- Filters by subject, date range, text and JSON event type
-- DLQ panel with auto-detected and manually configured dead-letter subjects
-- Loading, empty, error, connected and disconnected states
-- Local persistence of contexts and preferences
+---
 
-See [`docs/features.md`](docs/features.md).
+## Use it as an MCP server
 
-## v2 Interfaces
+Point any MCP client at the stdio server. For Claude Code:
 
 ```bash
-npm run cli
-npm run cli -- contexts list
-npm run cli -- context use local
-npm run cli -- context create --id local --name Local --url nats://127.0.0.1:4222 --environment local
-npm run cli -- context current --output json
-npm run cli -- mcp tools --output json
-npm run cli -- context current --agent
-npm run cli -- mcp run natstrail.list_contexts --limit 50 --agent
-npm run cli -- mcp run natstrail.list_filters --limit 50 --agent
-npm run cli -- filters list --limit 50 --agent
-npm run cli -- connection status --limit 1 --agent
-npm run cli -- audit list --limit 50 --agent
-NATS_TRAIL_API=http://localhost:4000 npm run cli -- connection connect --context-id local --agent
-NATS_TRAIL_API=http://localhost:4000 npm run cli -- streams list --limit 50 --agent
-NATS_TRAIL_API=http://localhost:4000 npm run cli -- subject listen --subject 'orders.>' --limit 20 --timeout-ms 30000 --agent
-NATS_TRAIL_API=http://localhost:4000 npm run cli -- stream tail --stream SOURCE_EVENTS --limit 20 --timeout-ms 30000 --agent
-NATS_TRAIL_API=http://localhost:4000 npm run cli -- streams list --context-id local --limit 50 --agent
-NATS_TRAIL_API=http://localhost:4000 npm run cli -- trace --context-id local --request-id req-123 --limit 20 --agent
-NATS_TRAIL_API=http://localhost:4000 npm run cli -- sentry enrich --context-id local --request-id req-123 --limit 20 --agent
-npm run mcp
-NATS_TRAIL_API=http://localhost:4000 npm run mcp
-NATS_TRAIL_API=http://localhost:4000 npm run cli -- mcp run natstrail.list_streams --contextId local --limit 50 --agent
+claude mcp add nats-trail -- npx -y @nats-trail/mcp
 ```
 
-See [`docs/cli.md`](docs/cli.md) and [`docs/mcp-agent.md`](docs/mcp-agent.md).
+Or wire it manually:
 
-The read-only Integration API exposes `/api/integration/tools`, `/api/integration/tools/:name`
-`/api/integration/audit` and `/api/integration/enrich/sentry` for external systems.
+```json
+{
+  "mcpServers": {
+    "nats-trail": {
+      "command": "natstrail-mcp",
+      "env": {
+        "NATS_TRAIL_API": "http://127.0.0.1:4000",
+        "NATS_TRAIL_TOKEN": "<bearer token>"
+      }
+    }
+  }
+}
+```
 
-## Development
+Fourteen read-only tools, all returning the same envelope:
 
-See [`docs/development.md`](docs/development.md).
+```
+natstrail.list_contexts          natstrail.search_messages
+natstrail.get_connection_status  natstrail.get_message_detail
+natstrail.list_streams           natstrail.trace_by_request_id
+natstrail.get_stream_info        natstrail.trace_by_correlation_id
+natstrail.list_consumers         natstrail.search_dlq
+natstrail.list_filters           natstrail.enrich_sentry
+natstrail.run_filter             natstrail.list_audit
+```
+
+See [`docs/mcp-agent.md`](docs/mcp-agent.md).
+
+---
+
+## Three surfaces, one engine
+
+```
+                 ┌──  Web UI          explore visually, save filters
+Query Engine  ───┼──  CLI             scripts, pipelines, humans in a terminal
+  (core)         └──  MCP + HTTP API  agents, Sentry, dashboards
+```
+
+A filter you save in the UI is the same filter `nats-trail filter run` executes, and the same one
+`natstrail.run_filter` hands an agent. Configure a context once; use it everywhere.
+
+- **`packages/ui`** — React + Vite. Presentation only.
+- **`packages/server`** — Express + WebSocket bridge. Owns connections and credentials.
+- **`packages/core`** — the Query Engine: envelopes, limits, truncation, filters, error normalization.
+- **`packages/cli`** — `nats-trail` / `nats-ui`, plus an interactive shell.
+- **`packages/mcp`** — tool contracts and the stdio server.
+
+See [`docs/architecture.md`](docs/architecture.md).
+
+---
+
+## Features
+
+**Inspect** — context selector (local / dev / staging / prod) with a prod confirmation gate, live
+subject subscription, JSON pretty print with tree view and in-payload search, stream and consumer
+browsing, auto-detected DLQ panel.
+
+**Query** — bounded stream scans with cursors and time windows, filters by subject, date, text and
+JSON event type, saved filters shared across all three surfaces.
+
+**Integrate** — read-only HTTP API under `/api/integration`, bearer tokens with per-token audit
+identity, and `POST /api/integration/enrich/sentry` to attach NATS context to an error without
+exposing credentials.
+
+Full list in [`docs/features.md`](docs/features.md) · CLI reference in [`docs/cli.md`](docs/cli.md).
+
+---
 
 ## Security
 
-Credentials live in contexts stored locally (`data/`, git-ignored). The UI never holds the
-NATS connection directly — it always goes through the API bridge. Never commit `.env` or real
-credentials.
+Credentials live in contexts stored locally under `data/` (git-ignored). The UI never holds the NATS
+connection — it always goes through the bridge, which pools one connection per context.
 
-The bridge keeps one NATS connection per context (a pool), so agents and the UI can inspect
-different contexts concurrently without disconnecting each other.
+The server binds to `127.0.0.1` by default because `/api/contexts` and `/api/connect` are
+unauthenticated local endpoints. To expose the Integration API and the WebSocket, configure bearer
+tokens with `NATS_TRAIL_TOKENS=name:token` or `data/tokens.json`; audit entries then record the
+authenticated token name per call.
 
-The server listens on `127.0.0.1` by default. `/api/contexts`, `/api/connect` and the
-JetStream read routes are unauthenticated local endpoints; only the Integration API and the
-WebSocket accept bearer tokens. Do not bind to a public interface without a proxy in front.
+---
 
-To require auth on the Integration API and the live WebSocket, configure bearer tokens via
-`NATS_TRAIL_TOKENS=name:token[,name2:token2]` or `data/tokens.json`. Audit entries then record
-the authenticated token name per call. Clients send the token from `NATS_TRAIL_TOKEN`.
+## Roadmap
+
+Tracked in [`docs/roadmap.md`](docs/roadmap.md).
+
+**Next** — npm and Docker distribution · KV and Object Store browsing · server and cluster health
+(`varz` / `connz` / `jsz`) · protobuf and msgpack decoding.
+
+**Then** — write operations (publish, purge, delete, consumer and stream management) for the UI and
+the CLI, behind scoped tokens on the HTTP API. The MCP runtime does not gain them.
+
+**Soon** — for teams that explicitly want agent writes, a **separate opt-in binary**
+(`natstrail-mcp-write`) that has to be installed on purpose. Never a flag on the read-only server:
+the guarantee above is only worth something if it cannot be switched off by accident.
+
+---
+
+## Contributing
+
+Issues and PRs welcome. See [`docs/development.md`](docs/development.md) for the build layout.
+
+## License
+
+[Apache-2.0](LICENSE) © Sol Soletti

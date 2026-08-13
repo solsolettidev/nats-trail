@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="240" viewBox="0 0 880 240" role="img" aria-label="NATS Trail — the agent-native observability layer for NATS and JetStream">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0e1116"/>
+      <stop offset="100%" stop-color="#161b22"/>
+    </linearGradient>
+    <linearGradient id="fade" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#4cc4ff" stop-opacity="0.16"/>
+      <stop offset="100%" stop-color="#4cc4ff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="880" height="240" rx="14" fill="url(#bg)"/>
+  <rect width="880" height="240" rx="14" fill="none" stroke="#2a313c"/>
+  <rect x="1" y="1" width="440" height="238" fill="url(#fade)"/>
+
+  <!-- waypoint mark -->
+  <g transform="translate(56 74) scale(0.78)">
+    <path d="M15 79 L37 53 L59 64 L80 30" stroke="#4cc4ff" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <circle cx="15" cy="79" r="5" fill="#4a6575"/>
+    <circle cx="37" cy="53" r="5" fill="#4a6575"/>
+    <circle cx="59" cy="64" r="5" fill="#4a6575"/>
+    <circle cx="80" cy="30" r="14.5" fill="none" stroke="#4cc4ff" stroke-width="3.5"/>
+    <circle cx="80" cy="30" r="7" fill="#4cc4ff"/>
+  </g>
+
+  <g font-family="'IBM Plex Sans',ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif">
+    <text x="152" y="106" font-size="44" font-weight="600" fill="#d7dde5">NATS <tspan fill="#4cc4ff">Trail</tspan></text>
+    <text x="154" y="140" font-size="16" fill="#8b97a7">The agent-native observability layer for NATS &amp; JetStream</text>
+  </g>
+
+  <g font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace" font-size="12.5">
+    <g transform="translate(154 172)">
+      <rect width="86" height="26" rx="13" fill="#161b22" stroke="#2a313c"/>
+      <text x="43" y="17" fill="#8b97a7" text-anchor="middle">web UI</text>
+    </g>
+    <g transform="translate(250 172)">
+      <rect width="70" height="26" rx="13" fill="#161b22" stroke="#2a313c"/>
+      <text x="35" y="17" fill="#8b97a7" text-anchor="middle">CLI</text>
+    </g>
+    <g transform="translate(330 172)">
+      <rect width="132" height="26" rx="13" fill="#0f2430" stroke="#2f6c8a"/>
+      <text x="66" y="17" fill="#4cc4ff" text-anchor="middle">MCP · read-only</text>
+    </g>
+    <g transform="translate(472 172)">
+      <rect width="150" height="26" rx="13" fill="#161b22" stroke="#2a313c"/>
+      <text x="75" y="17" fill="#8b97a7" text-anchor="middle">Integration API</text>
+    </g>
+  </g>
+</svg>
