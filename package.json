@@ -1,5 +1,5 @@
 {
-  "name": "nats-trail",
+  "name": "nats-trail-monorepo",
   "version": "0.1.0",
   "private": true,
   "description": "Visual tool to inspect and debug NATS and JetStream",

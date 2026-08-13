@@ -37,7 +37,7 @@ const DEFAULT_PREFS: Preferences = {
   messageViewerMode: "tree",
 };
 
-const NUMERIC_FLAGS = new Set(["limit", "seq", "timeoutMs", "fromTs", "toTs", "maxScan"]);
+const NUMERIC_FLAGS = new Set(["limit", "seq", "timeoutMs", "fromTs", "toTs", "maxScan", "port"]);
 
 /**
  * Tools require an explicit limit so agents never ask for unbounded results. A
@@ -76,6 +76,11 @@ async function runCommand(args: string[]): Promise<void> {
 
   if (command[0] === "help" || command[0] === "--help") {
     printHelp();
+    return;
+  }
+
+  if (command[0] === "serve") {
+    await serve(command.slice(1));
     return;
   }
 
@@ -670,12 +675,28 @@ function printCliError(output: Output, tool: string, message: string): void {
   fail(message);
 }
 
+/**
+ * Start the bridge (and the built UI when present) in this process. Imported
+ * lazily so the query commands do not pay for express and the NATS client.
+ */
+async function serve(args: string[]): Promise<void> {
+  const input = readNamedArgs(args);
+  const { startServer } = await import("@nats-trail/server");
+  const { url, hasUi } = await startServer({
+    port: numberValue(input.port),
+    host: stringValue(input.host),
+  });
+  console.log(`[nats-trail] ${hasUi ? "UI + API" : "API bridge"} listening on ${url}`);
+  if (!hasUi) console.log("[nats-trail] UI bundle not found; API only.");
+}
+
 function printHelp(): void {
-  console.log(`nats-ui <command>
+  console.log(`nats-trail <command>
 
 Run without arguments to open the interactive shell. Type exit or quit to leave.
 
 Commands:
+  serve                      Start the API bridge and the web UI
   contexts list              List UI-configured contexts
   context current            Show selected context
   context use <id-or-name>   Select a context for CLI usage
@@ -702,6 +723,7 @@ Commands:
   sentry enrich              Collect trace and DLQ context for Sentry
 
 Options:
+  --port <n> / --host <addr>  Bind options for serve (default: 127.0.0.1:4000)
   --limit <n>                 Max results per query (default: 50, max 200)
   --output text|json|ndjson   Output format (default: text)
   --agent                     Force JSON envelopes for agent-safe usage

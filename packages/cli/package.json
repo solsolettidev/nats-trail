@@ -1,9 +1,8 @@
 {
-  "name": "@nats-trail/cli",
+  "name": "nats-trail",
   "version": "0.1.0",
   "type": "module",
   "bin": {
-    "nats-ui": "./dist/index.js",
     "nats-trail": "./dist/index.js"
   },
   "scripts": {
@@ -15,7 +14,8 @@
     "@nats-trail/core": "0.1.0",
     "@nats-trail/mcp": "0.1.0",
     "@types/ws": "^8.18.1",
-    "ws": "^8.21.0"
+    "ws": "^8.21.0",
+    "@nats-trail/server": "0.1.0"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",
@@ -35,5 +35,15 @@
   "homepage": "https://github.com/solsolettidev/nats-trail#readme",
   "bugs": {
     "url": "https://github.com/solsolettidev/nats-trail/issues"
-  }
+  },
+  "description": "Agent-native observability for NATS and JetStream: CLI, MCP server and web UI.",
+  "keywords": [
+    "nats",
+    "jetstream",
+    "mcp",
+    "observability",
+    "debugging",
+    "cli",
+    "agent"
+  ]
 }

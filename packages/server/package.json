@@ -1,12 +1,11 @@
 {
   "name": "@nats-trail/server",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
   "scripts": {
     "build": "tsc -b",
-    "dev": "tsx watch src/index.ts",
-    "start": "node dist/index.js",
+    "dev": "tsx watch src/main.ts",
+    "start": "node dist/main.js",
     "typecheck": "tsc -b"
   },
   "dependencies": {
@@ -14,7 +13,8 @@
     "@nats-trail/mcp": "0.1.0",
     "express": "^4.21.1",
     "nats": "^2.29.2",
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "@nats-trail/ui": "0.1.0"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
@@ -33,5 +33,19 @@
   "homepage": "https://github.com/solsolettidev/nats-trail#readme",
   "bugs": {
     "url": "https://github.com/solsolettidev/nats-trail/issues"
+  },
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "natstrail-server": "./dist/main.js"
   }
 }
