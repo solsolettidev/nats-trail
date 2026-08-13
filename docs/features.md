@@ -100,6 +100,6 @@ Every panel handles: loading, empty, error, connected and disconnected.
 
 ## Planned
 
-- Message replay and stream administration (still deliberately read-only today).
-- Metrics, alerting and multi-user collaboration.
-- Publishing the packages to a registry.
+See [`roadmap.md`](roadmap.md) for the prioritized plan. In short: distribution (npm, Docker),
+KV and Object Store browsing, server health, payload codecs, then write operations for the UI and
+CLI only — the MCP runtime stays read-only by construction.
