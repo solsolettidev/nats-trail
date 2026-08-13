@@ -17,12 +17,12 @@ work in the whole document.
 | # | Task | Notes |
 |---|---|---|
 | 0.1 | Apache-2.0 `LICENSE` and `license` field in every manifest | **done** — without this nobody may legally use the project |
-| 0.2 | Publish to npm | Blocked on the `NPM_TOKEN` secret. Publish order: `core`, `mcp`, `ui`, `server`, `nats-trail` |
+| 0.2 | Publish to npm | **4 of 5 done** — `@nats-trail/{core,mcp,ui,server}` v0.1.0 are live. `nats-trail` needs a token scoped to all packages |
 | 0.3 | `npx nats-trail serve` works from a clean machine | Follows from 0.2. `serve` runs today from source and in Docker |
 | 0.4 | Docker image + `docker-compose.yml` with a `nats-server -js` | **done** — multi-stage build, non-root, `/data` volume, healthcheck |
 | 0.5 | Rename the primary binary to `nats-trail` | **done** — `nats-ui` is taken on npm by an unrelated package, so the alias was dropped rather than deprecated |
 | 0.6 | GitHub Actions: typecheck + build on PR, publish on tag | **done** — CI on Node 20/22 with a serve smoke test; release workflow needs `NPM_TOKEN` |
-| 0.7 | Screenshots or a short GIF of the UI in the README | Text-only READMEs read as unfinished |
+| 0.7 | Screenshots of the UI in the README | **done** — four panels, seeded with `scripts/seed-demo.mjs` |
 
 ## Phase 1 — Functional parity
 
