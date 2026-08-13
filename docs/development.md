@@ -1,5 +1,17 @@
 # Development
 
+## Build
+
+`npm run build` compiles `core`, `mcp`, `cli` and `server` to `dist/` (TypeScript project
+references) and bundles the UI with Vite. `npm run clean` removes the compiled output.
+
+The workspace packages resolve each other through their compiled `dist`, so `npm run dev` also
+runs `tsc -b --watch` (`dev:types`) alongside the server and the UI. `prepare` builds on
+`npm install`, so a fresh clone can run `npm start` right away.
+
+The `cli` and `mcp` packages ship `bin` entries (`nats-ui` / `nats-trail` and `natstrail-mcp`)
+pointing at the compiled output, so they run under plain `node` without `tsx`.
+
 ## Layout
 
 ```

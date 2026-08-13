@@ -13,3 +13,6 @@ nats-ui-v2.md
 # Local product state (contexts, prefs, recent messages, audit)
 data/
 *.local.json
+
+# TypeScript incremental build state
+*.tsbuildinfo
