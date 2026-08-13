@@ -87,3 +87,20 @@ NATS_TRAIL_PORT   API bridge port (default 4000)
 NATS_TRAIL_DATA   data directory  (default ./data)
 NATS_TRAIL_API    MCP server bridge URL for live tools (example http://localhost:4000)
 ```
+
+## Demo data
+
+`scripts/seed-demo.mjs` fills a local NATS server with a realistic workload: four streams, three
+durable consumers with pending messages, ~200 correlated events, and three flows that fail and land
+in `DLQ_EVENTS`. It refuses to run against anything that is not loopback.
+
+```bash
+docker compose up -d
+node scripts/seed-demo.mjs
+```
+
+The failing request ids it prints are the ones worth tracing:
+
+```bash
+nats-trail trace --request-id req-0001b --context-id local --limit 20
+```
