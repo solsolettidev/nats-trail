@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: ["20", "22"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run typecheck
+      - name: Smoke test the built CLI and server
+        run: |
+          node packages/cli/dist/index.js help
+          node packages/cli/dist/index.js mcp tools --output json > /dev/null
+          node packages/cli/dist/index.js serve --port 4123 &
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:4123/api/health && break || sleep 1
+          done
+          curl -sf http://127.0.0.1:4123/api/health
+          curl -sf -o /dev/null -w '%{http_code}\n' http://127.0.0.1:4123/

@@ -1,0 +1,25 @@
+services:
+  nats:
+    image: nats:2.11-alpine
+    command: ["-js", "-m", "8222"]
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+
+  nats-trail:
+    build: .
+    image: ghcr.io/solsolettidev/nats-trail:latest
+    depends_on:
+      - nats
+    ports:
+      - "4000:4000"
+    volumes:
+      - nats-trail-data:/data
+    environment:
+      # Bearer tokens for the Integration API and the WebSocket. Leave unset to
+      # disable auth (only sensible on a private network).
+      # NATS_TRAIL_TOKENS: "ci:change-me"
+      NATS_TRAIL_HOST: 0.0.0.0
+
+volumes:
+  nats-trail-data:
