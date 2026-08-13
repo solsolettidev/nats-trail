@@ -32,10 +32,15 @@ read-only tool contract — so you can point Claude at production and ask.
 </p>
 
 ```bash
-nats-trail trace --request-id req-8f21c --limit 20
+nats-trail trace --request-id req-0001d --limit 20
 ```
 
-Or, from an agent: *"Why did the refresh for source 8f21c fail?"*
+Or, from an agent: *"Why did the refresh for s3-events fail?"* — and it lands on the message that
+actually broke, with the retry state and the correlation ids already extracted:
+
+<p align="center">
+  <img src="docs/assets/screenshot-viewer.png" alt="The message viewer showing a bronze.etl.failed event in tree view, with error, code, attempt count and retries_exhausted" width="880">
+</p>
 
 ---
 
@@ -177,6 +182,17 @@ See [`docs/architecture.md`](docs/architecture.md).
 **Inspect** — context selector (local / dev / staging / prod) with a prod confirmation gate, live
 subject subscription, JSON pretty print with tree view and in-payload search, stream and consumer
 browsing, auto-detected DLQ panel.
+
+<table>
+<tr>
+<td width="50%"><img src="docs/assets/screenshot-jetstream.png" alt="JetStream panel listing streams with message counts, sizes and per-stream consumers with pending and ack-pending columns"><br><sub><b>JetStream</b> — streams, subjects, counts and consumer health.</sub></td>
+<td width="50%"><img src="docs/assets/screenshot-core.png" alt="NATS Core panel with a live subscription to orders.> and a selected message rendered as a JSON tree"><br><sub><b>NATS Core</b> — live subject subscription with filters.</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/assets/screenshot-dlq.png" alt="DLQ panel listing dead-letter events with their original subject and failure reason"><br><sub><b>DLQ</b> — auto-detected dead letters with reason and origin.</sub></td>
+<td width="50%"><img src="docs/assets/screenshot-viewer.png" alt="Message viewer in tree mode with a key filter"><br><sub><b>Viewer</b> — tree, raw, search, fullscreen, copy-path.</sub></td>
+</tr>
+</table>
 
 **Query** — bounded stream scans with cursors and time windows, filters by subject, date, text and
 JSON event type, saved filters shared across all three surfaces.
