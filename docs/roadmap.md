@@ -9,16 +9,19 @@ Nothing in phases 0-2 may weaken the rule in [Write boundary](#write-boundary).
 
 ---
 
-## Phase 0 — Make it installable
+## Phase 0 — Make it installable ✅
 
 Nothing else matters until someone who is not the author can run this. Highest return per hour of
 work in the whole document.
 
+**Complete.** `npx nats-trail serve` works from a clean machine; the packages are on npm under
+Apache-2.0; CI builds on Node 20 and 22.
+
 | # | Task | Notes |
 |---|---|---|
 | 0.1 | Apache-2.0 `LICENSE` and `license` field in every manifest | **done** — without this nobody may legally use the project |
-| 0.2 | Publish to npm | **4 of 5 done** — `@nats-trail/{core,mcp,ui,server}` v0.1.0 are live. `nats-trail` needs a token scoped to all packages |
-| 0.3 | `npx nats-trail serve` works from a clean machine | Follows from 0.2. `serve` runs today from source and in Docker |
+| 0.2 | Publish to npm | **done** — `nats-trail` and `@nats-trail/{core,mcp,ui,server}` v0.1.0 are live |
+| 0.3 | `npx nats-trail serve` works from a clean machine | **done** — verified from a clean install: UI, API, 14 MCP tools and the `natstrail-mcp` stdio binary |
 | 0.4 | Docker image + `docker-compose.yml` with a `nats-server -js` | **done** — multi-stage build, non-root, `/data` volume, healthcheck |
 | 0.5 | Rename the primary binary to `nats-trail` | **done** — `nats-ui` is taken on npm by an unrelated package, so the alias was dropped rather than deprecated |
 | 0.6 | GitHub Actions: typecheck + build on PR, publish on tag | **done** — CI on Node 20/22 with a serve smoke test; release workflow needs `NPM_TOKEN` |

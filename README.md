@@ -3,6 +3,7 @@
 </p>
 
 <p align="center">
+  <a href="https://www.npmjs.com/package/nats-trail"><img alt="npm" src="https://img.shields.io/npm/v/nats-trail?style=flat-square&color=4cc4ff&label=npm"></a>
   <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-4cc4ff?style=flat-square"></a>
   <img alt="Node >= 20" src="https://img.shields.io/badge/node-%3E%3D20-8b97a7?style=flat-square">
   <img alt="TypeScript strict" src="https://img.shields.io/badge/TypeScript-strict-8b97a7?style=flat-square">
@@ -81,13 +82,16 @@ This is the only reason it is reasonable to hand an agent a `prod` context.
 npx nats-trail serve
 ```
 
-> Coming with the first npm release — see [Roadmap](#roadmap). Available today:
+Open **http://127.0.0.1:4000** — one process serves the UI and the API.
+
+Prefer containers? The compose file brings up NATS Trail next to a JetStream-enabled server:
 
 ```bash
-docker compose up          # NATS Trail plus a JetStream-enabled nats-server
+docker compose up
 ```
 
-Or from source:
+<details>
+<summary>From source</summary>
 
 ```bash
 git clone https://github.com/solsolettidev/nats-trail
@@ -96,7 +100,7 @@ npm install
 npm start
 ```
 
-Open **http://127.0.0.1:4000** — one process serves the UI and the API.
+</details>
 
 <details>
 <summary>Development with hot reload</summary>
