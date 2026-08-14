@@ -103,3 +103,12 @@ Every panel handles: loading, empty, error, connected and disconnected.
 See [`roadmap.md`](roadmap.md) for the prioritized plan. In short: distribution (npm, Docker),
 KV and Object Store browsing, server health, payload codecs, then write operations for the UI and
 CLI only — the MCP runtime stays read-only by construction.
+
+## KV Store
+
+- Browse JetStream Key/Value buckets: values, size, history depth, TTL, storage and replicas.
+- List live keys with their current value, revision and age; filter by key or value.
+- Full revision history per key, including `DEL` / `PURGE` tombstones, which is what makes a
+  value that disappeared explainable.
+- Exposed on all three surfaces: `/api/kv`, `nats-trail kv list|keys|history`, and the read-only
+  tools `natstrail.list_kv_buckets`, `natstrail.list_kv_keys` and `natstrail.get_kv_history`.

@@ -13,7 +13,10 @@ import {
   normalizeError,
   normalizeScan,
   parseMessage,
+  truncateText,
   type Context,
+  type KvBucket,
+  type KvEntry,
   type ConnectionState,
   type Stream,
   type StreamQuery,
@@ -160,6 +163,76 @@ class ManagedConnection {
       });
     }
     return out;
+  }
+
+  /**
+   * List Key/Value buckets. KV is backed by streams named `KV_<bucket>`, so the
+   * bucket list is derived from the stream list rather than opening every
+   * bucket, which keeps this a single round trip.
+   */
+  async listKvBuckets(): Promise<KvBucket[]> {
+    const jsm = await this.requireJsm();
+    const out: KvBucket[] = [];
+    for await (const si of jsm.streams.list()) {
+      const name = si.config.name;
+      if (!name.startsWith("KV_")) continue;
+      out.push({
+        name: name.slice(3),
+        values: si.state.messages,
+        bytes: si.state.bytes,
+        history: si.config.max_msgs_per_subject,
+        ttl: Number(si.config.max_age),
+        storage: String(si.config.storage),
+        replicas: si.config.num_replicas,
+        stream: name,
+      });
+    }
+    return out;
+  }
+
+  /**
+   * List the live keys of a bucket with their current values, bounded by
+   * `limit`. Values follow the same truncation rules as stream messages.
+   */
+  async listKvEntries(bucket: string, limit: number): Promise<KvEntry[]> {
+    const kv = await this.requireKv(bucket);
+    // Drain the key iterator before fetching any value: it is backed by a
+    // consumer, and issuing another JetStream request mid-iteration ends it
+    // early, which silently returns just the first key.
+    const names: string[] = [];
+    const keys = await kv.keys();
+    for await (const key of keys) {
+      names.push(key);
+      if (names.length >= limit) break;
+    }
+    const out: KvEntry[] = [];
+    for (const key of names) {
+      const entry = await kv.get(key);
+      if (entry) out.push(toKvEntry(bucket, entry));
+    }
+    return out;
+  }
+
+  /**
+   * Full revision history for one key, oldest first. Includes `DEL`/`PURGE`
+   * tombstones, which are what make a disappearing value explainable.
+   */
+  async kvHistory(bucket: string, key: string, limit: number): Promise<KvEntry[]> {
+    const kv = await this.requireKv(bucket);
+    const out: KvEntry[] = [];
+    const history = await kv.history({ key });
+    for await (const entry of history) {
+      out.push(toKvEntry(bucket, entry));
+    }
+    // Keep the most recent revisions when the history exceeds the budget.
+    return out.slice(-limit);
+  }
+
+  private async requireKv(bucket: string) {
+    if (!this.nc || this.state.status !== "connected") {
+      throw new Error("Not connected to NATS");
+    }
+    return this.nc.jetstream().views.kv(bucket, { bindOnly: true });
   }
 
   async getStreamMessage(stream: string, seq: number): Promise<Message | null> {
@@ -326,6 +399,41 @@ function directToMessage(msg: DirectMessageLike): Message {
   });
 }
 
+/** Shape a nats KV entry into the core `KvEntry`, mirroring message truncation. */
+function toKvEntry(bucket: string, entry: KvEntryLike): KvEntry {
+  const raw = entry.value ? decoder.decode(entry.value) : "";
+  const { value, truncated } = truncateText(raw);
+  let json: unknown = null;
+  let isJson = false;
+  if (!truncated && value) {
+    try {
+      json = JSON.parse(value);
+      isJson = true;
+    } catch {
+      // Not JSON; the raw value is already in `value`.
+    }
+  }
+  return {
+    bucket,
+    key: entry.key,
+    value,
+    truncated,
+    json,
+    isJson,
+    revision: entry.revision,
+    timestamp: entry.created instanceof Date ? entry.created.getTime() : Date.now(),
+    operation: entry.operation === "DEL" || entry.operation === "PURGE" ? entry.operation : "PUT",
+  };
+}
+
+interface KvEntryLike {
+  key: string;
+  value: Uint8Array | null;
+  revision: number;
+  created: Date;
+  operation: string;
+}
+
 function consumerIssues(ackPending: number, redelivered: number, replicaLag: boolean): string[] {
   const issues: string[] = [];
   if (ackPending > 0) issues.push(`${ackPending} ack pending`);
@@ -382,6 +490,18 @@ class ConnectionPool {
 
   listConsumers(contextId: string, stream: string): Promise<Consumer[]> {
     return this.require(contextId).listConsumers(stream);
+  }
+
+  listKvBuckets(contextId: string): Promise<KvBucket[]> {
+    return this.require(contextId).listKvBuckets();
+  }
+
+  listKvEntries(contextId: string, bucket: string, limit: number): Promise<KvEntry[]> {
+    return this.require(contextId).listKvEntries(bucket, limit);
+  }
+
+  kvHistory(contextId: string, bucket: string, key: string, limit: number): Promise<KvEntry[]> {
+    return this.require(contextId).kvHistory(bucket, key, limit);
   }
 
   getStreamMessage(contextId: string, stream: string, seq: number): Promise<Message | null> {

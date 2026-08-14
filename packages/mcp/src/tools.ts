@@ -60,6 +60,9 @@ export const mcpTools: McpToolDefinition[] = [
   tool("natstrail.search_dlq", "Search dead-letter messages.", { contextId: { type: "string" }, subject: { type: "string" }, limit: limitProperty, fromTs: fromTsProperty, toTs: toTsProperty, maxScan: maxScanProperty }, ["contextId", "limit"], SCAN_TIMEOUT_MS),
   tool("natstrail.enrich_sentry", "Collect trace and DLQ context for a Sentry issue.", { contextId: { type: "string" }, requestId: { type: "string" }, correlationId: { type: "string" }, limit: limitProperty, fromTs: fromTsProperty, toTs: toTsProperty, maxScan: maxScanProperty }, ["contextId", "limit"], SCAN_TIMEOUT_MS),
   tool("natstrail.get_message_detail", "Get a single message detail by locator.", withLimit({ contextId: { type: "string" }, stream: { type: "string" }, seq: { type: "integer" } })),
+  tool("natstrail.list_kv_buckets", "List JetStream Key/Value buckets.", { contextId: { type: "string" }, limit: limitProperty }),
+  tool("natstrail.list_kv_keys", "List live keys and current values in a KV bucket.", { contextId: { type: "string" }, bucket: { type: "string" }, limit: limitProperty }, ["contextId", "bucket", "limit"], SCAN_TIMEOUT_MS),
+  tool("natstrail.get_kv_history", "Get the revision history of one KV key, including deletes.", { contextId: { type: "string" }, bucket: { type: "string" }, key: { type: "string" }, limit: limitProperty }, ["contextId", "bucket", "key", "limit"], SCAN_TIMEOUT_MS),
 ];
 
 export function validateToolInput(name: string, input: Record<string, unknown>): ToolInputError[] {

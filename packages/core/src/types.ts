@@ -84,6 +84,42 @@ export interface Stream {
   discard: string;
 }
 
+/** A JetStream Key/Value bucket. */
+export interface KvBucket {
+  name: string;
+  /**
+   * Stored revisions, not live keys: a bucket keeping history holds several
+   * revisions per key, and deletes are tombstones that still count. Matches
+   * what `nats kv info` reports as "Values".
+   */
+  values: number;
+  bytes: number;
+  /** Revisions kept per key. */
+  history: number;
+  /** Per-key TTL in nanoseconds, 0 when unset. */
+  ttl: number;
+  storage: string;
+  replicas: number;
+  /** The stream backing this bucket (`KV_<name>`). */
+  stream: string;
+}
+
+/** One revision of a key. `value` follows the same truncation rules as messages. */
+export interface KvEntry {
+  bucket: string;
+  key: string;
+  value: string;
+  /** True when `value` was cut to the payload cap. */
+  truncated: boolean;
+  /** Parsed payload when the value is JSON. */
+  json: unknown;
+  isJson: boolean;
+  revision: number;
+  timestamp: number;
+  /** `PUT` for a live value, `DEL`/`PURGE` for a tombstone. */
+  operation: "PUT" | "DEL" | "PURGE";
+}
+
 export interface Consumer {
   name: string;
   stream: string;

@@ -57,6 +57,9 @@ const LIVE_TOOLS = new Set([
   "natstrail.trace_by_correlation_id",
   "natstrail.search_dlq",
   "natstrail.enrich_sentry",
+  "natstrail.list_kv_buckets",
+  "natstrail.list_kv_keys",
+  "natstrail.get_kv_history",
 ]);
 
 main(process.argv.slice(2)).catch((err: unknown) => fail(err instanceof Error ? err.message : String(err)));
@@ -194,6 +197,21 @@ async function runCommand(args: string[]): Promise<void> {
     if (input.requestId) await runMcpTool("natstrail.trace_by_request_id", command.slice(1), output);
     else if (input.correlationId) await runMcpTool("natstrail.trace_by_correlation_id", command.slice(1), output);
     else fail("Usage: nats-ui trace --requestId <id> --contextId <id> --limit <n>");
+    return;
+  }
+
+  if (command[0] === "kv" && command[1] === "list") {
+    await runMcpTool("natstrail.list_kv_buckets", command.slice(2), output);
+    return;
+  }
+
+  if (command[0] === "kv" && command[1] === "keys") {
+    await runMcpTool("natstrail.list_kv_keys", command.slice(2), output);
+    return;
+  }
+
+  if (command[0] === "kv" && command[1] === "history") {
+    await runMcpTool("natstrail.get_kv_history", command.slice(2), output);
     return;
   }
 
@@ -719,6 +737,9 @@ Commands:
   messages search            Search JetStream messages through the Query Engine
   message detail             Get one stream message by --stream and --seq
   trace                      Trace by --requestId or --correlationId
+  kv list                    List Key/Value buckets
+  kv keys                    List keys and values in a bucket (--bucket)
+  kv history                 Revision history for one key (--bucket --key)
   dlq search                 Search dead-letter messages
   sentry enrich              Collect trace and DLQ context for Sentry
 

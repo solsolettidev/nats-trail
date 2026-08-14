@@ -206,6 +206,32 @@ router.get("/streams/:name/consumers", async (req, res) => {
   }
 });
 
+router.get("/kv", async (req, res) => {
+  try {
+    res.json(await connectionPool.listKvBuckets(requestContextId(req)));
+  } catch (err) {
+    res.status(409).json({ error: normalizeError(err) });
+  }
+});
+
+router.get("/kv/:bucket/keys", async (req, res) => {
+  try {
+    const limit = Number(req.query.limit) || 200;
+    res.json(await connectionPool.listKvEntries(requestContextId(req), req.params.bucket, limit));
+  } catch (err) {
+    res.status(409).json({ error: normalizeError(err) });
+  }
+});
+
+router.get("/kv/:bucket/keys/:key/history", async (req, res) => {
+  try {
+    const limit = Number(req.query.limit) || 50;
+    res.json(await connectionPool.kvHistory(requestContextId(req), req.params.bucket, req.params.key, limit));
+  } catch (err) {
+    res.status(409).json({ error: normalizeError(err) });
+  }
+});
+
 function selectedContextId(): string | null {
   return loadPreferences().selectedContextId;
 }
@@ -238,6 +264,9 @@ function executeIntegrationTool(name: string, input: Record<string, unknown>) {
     listConsumers: (stream) => connectionPool.listConsumers(target, stream),
     getStreamMessage: (stream, seq) => connectionPool.getStreamMessage(target, stream, seq),
     queryStreamMessages: (query) => connectionPool.queryStreamMessages(target, query),
+    listKvBuckets: () => connectionPool.listKvBuckets(target),
+    listKvEntries: (bucket, limit) => connectionPool.listKvEntries(target, bucket, limit),
+    kvHistory: (bucket, key, limit) => connectionPool.kvHistory(target, bucket, key, limit),
   });
 }
 

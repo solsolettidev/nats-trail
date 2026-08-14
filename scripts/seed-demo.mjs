@@ -98,6 +98,28 @@ for (let i = 0; i < 34; i++) {
   if (i % 7 === 0) await emit("orders.failed", { type: "orders.failed", order_id: `ord-${2400 + i}`, error: "card_declined" }, requestId, `corr-ord-${2400 + i}`);
 }
 
+// Key/Value buckets: config, feature flags and a key with a visible history.
+const kvConfig = await js.views.kv("app-config", { history: 10 });
+for (const [key, value] of [
+  ["etl.batch_size", { value: 5000, updated_by: "platform" }],
+  ["etl.max_retries", { value: 3, updated_by: "platform" }],
+  ["api.rate_limit", { value: 1200, window: "1m" }],
+  ["features.new_pipeline", { enabled: false, rollout_pct: 0 }],
+]) {
+  await kvConfig.put(key, new TextEncoder().encode(JSON.stringify(value)));
+}
+// Same key edited repeatedly, then deleted: this is what history is for.
+for (const pct of [5, 25, 60, 100]) {
+  await kvConfig.put("features.new_pipeline", new TextEncoder().encode(JSON.stringify({ enabled: true, rollout_pct: pct })));
+}
+await kvConfig.put("etl.deprecated_flag", new TextEncoder().encode(JSON.stringify({ value: "legacy" })));
+await kvConfig.delete("etl.deprecated_flag");
+
+const kvLocks = await js.views.kv("worker-locks", { history: 3 });
+for (const worker of ["refresh-worker", "bronze-loader"]) {
+  await kvLocks.put(worker, new TextEncoder().encode(JSON.stringify({ holder: `pod-${worker}-7f9`, acquired_at: new Date().toISOString() })));
+}
+
 for (const c of CONSUMERS) {
   await jsm.consumers
     .add(c.stream, { durable_name: c.durable, ack_policy: AckPolicy.Explicit, filter_subject: c.filter })
@@ -115,6 +137,10 @@ for await (const m of batch) {
 for (const s of STREAMS) {
   const info = await jsm.streams.info(s.name);
   console.log(`  ${s.name.padEnd(15)} ${String(info.state.messages).padStart(4)} messages`);
+}
+for (const bucket of ["app-config", "worker-locks"]) {
+  const status = await (await js.views.kv(bucket, { bindOnly: true })).status();
+  console.log(`  KV ${bucket.padEnd(12)} ${String(status.values).padStart(4)} revisions`);
 }
 console.log(`\nfailing request ids: ${[27, 28, 29].map(rid).join(", ")}`);
 

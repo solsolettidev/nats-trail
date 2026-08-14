@@ -4,15 +4,17 @@ import { ContextSelector } from "./components/ContextSelector.js";
 import { ConnectionStatus } from "./components/ConnectionStatus.js";
 import { CorePanel } from "./components/CorePanel.js";
 import { JetStreamPanel } from "./components/JetStreamPanel.js";
+import { KvPanel } from "./components/KvPanel.js";
 import { DlqPanel } from "./components/DlqPanel.js";
 import { Loading, ErrorState } from "./components/states.js";
 import { Icon } from "./components/ui.js";
 
-type Tab = "core" | "jetstream" | "dlq";
+type Tab = "core" | "jetstream" | "kv" | "dlq";
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: "core", label: "NATS Core", icon: "broadcast" },
   { id: "jetstream", label: "JetStream", icon: "stack" },
+  { id: "kv", label: "KV Store", icon: "key" },
   { id: "dlq", label: "DLQ", icon: "skull" },
 ];
 
@@ -182,6 +184,7 @@ export function App() {
               />
             )}
             {tab === "jetstream" && <JetStreamPanel connected={connected} />}
+            {tab === "kv" && <KvPanel connected={connected} />}
             {tab === "dlq" && <DlqPanel connected={connected} />}
           </div>
         </main>

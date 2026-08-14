@@ -777,3 +777,6 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: var(--fs-13); }
 .saved__del { padding: 0 8px 0 2px; }
 .saved__del:hover { color: var(--err); }
 .saved__error { color: var(--err); font-size: var(--fs-sm); }
+
+/* KV values: keep long JSON on one line, elided rather than wrapping the row */
+.kv-value { font-family: var(--font-mono); font-size: var(--fs-sm); color: var(--text); }

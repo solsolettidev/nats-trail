@@ -21,6 +21,8 @@ import {
   type Stream,
   type StreamQuery,
   type StreamQueryPage,
+  type KvBucket,
+  type KvEntry,
 } from "@nats-trail/core";
 import { mcpTools, validateToolInput } from "./tools.js";
 
@@ -36,6 +38,9 @@ export interface McpRuntimeData {
   listConsumers?: (stream: string) => Promise<Consumer[]>;
   getStreamMessage?: (stream: string, seq: number) => Promise<Message | null>;
   queryStreamMessages?: (query: StreamQuery) => Promise<StreamQueryPage>;
+  listKvBuckets?: () => Promise<KvBucket[]>;
+  listKvEntries?: (bucket: string, limit: number) => Promise<KvEntry[]>;
+  kvHistory?: (bucket: string, key: string, limit: number) => Promise<KvEntry[]>;
 }
 
 /** Page size used when a tool scans a stream window incrementally. */
@@ -290,6 +295,45 @@ async function executeMcpToolInner(name: string, input: Record<string, unknown>,
         }
       }
       return createQueryEnvelope({ query: { tool: name, contextId: input.contextId, subject }, results: found, limit, warnings });
+    } catch (err) {
+      return toolError(name, limit, err);
+    }
+  }
+
+  if (name === "natstrail.list_kv_buckets") {
+    const error = validateConnectedContext(name, input, data);
+    if (error) return error;
+    if (!data.listKvBuckets) return notImplemented(name, limit);
+    try {
+      return createQueryEnvelope({ query: { tool: name, contextId: input.contextId }, results: await data.listKvBuckets(), limit });
+    } catch (err) {
+      return toolError(name, limit, err);
+    }
+  }
+
+  if (name === "natstrail.list_kv_keys") {
+    const error = validateConnectedContext(name, input, data);
+    if (error) return error;
+    if (!data.listKvEntries) return notImplemented(name, limit);
+    const bucket = stringInput(input.bucket);
+    if (!bucket) return inputError(name, limit, "bucket is required");
+    try {
+      return createQueryEnvelope({ query: { tool: name, contextId: input.contextId, bucket }, results: await data.listKvEntries(bucket, limit), limit });
+    } catch (err) {
+      return toolError(name, limit, err);
+    }
+  }
+
+  if (name === "natstrail.get_kv_history") {
+    const error = validateConnectedContext(name, input, data);
+    if (error) return error;
+    if (!data.kvHistory) return notImplemented(name, limit);
+    const bucket = stringInput(input.bucket);
+    const key = stringInput(input.key);
+    if (!bucket) return inputError(name, limit, "bucket is required");
+    if (!key) return inputError(name, limit, "key is required");
+    try {
+      return createQueryEnvelope({ query: { tool: name, contextId: input.contextId, bucket, key }, results: await data.kvHistory(bucket, key, limit), limit });
     } catch (err) {
       return toolError(name, limit, err);
     }
