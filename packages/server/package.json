@@ -1,6 +1,6 @@
 {
   "name": "@nats-trail/server",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "build": "tsc -b",
@@ -10,12 +10,12 @@
     "prepack": "node ../../scripts/prepare-packages.mjs"
   },
   "dependencies": {
-    "@nats-trail/core": "0.1.1",
-    "@nats-trail/mcp": "0.1.1",
+    "@nats-trail/core": "0.2.0",
+    "@nats-trail/mcp": "0.2.0",
     "express": "^4.21.1",
     "nats": "^2.29.2",
     "ws": "^8.18.0",
-    "@nats-trail/ui": "0.1.1"
+    "@nats-trail/ui": "0.2.0"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
