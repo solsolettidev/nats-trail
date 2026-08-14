@@ -5,3 +5,4 @@ export * from "./filters.js";
 export * from "./query.js";
 export * from "./dlq.js";
 export * from "./errors.js";
+export * from "./insight.js";

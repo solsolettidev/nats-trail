@@ -143,6 +143,19 @@ class ManagedConnection {
     return out;
   }
 
+  /**
+   * Concrete subjects that actually carry messages in a stream, with counts.
+   *
+   * A stream declares subject patterns (`orders.>`); this reports what really
+   * arrived (`orders.created`, `orders.paid`), which is what an agent needs to
+   * explore a topology nobody documented for it.
+   */
+  async streamSubjects(stream: string): Promise<Record<string, number>> {
+    const jsm = await this.requireJsm();
+    const info = await jsm.streams.info(stream, { subjects_filter: ">" });
+    return info.state.subjects ?? {};
+  }
+
   async listConsumers(stream: string): Promise<Consumer[]> {
     const jsm = await this.requireJsm();
     const out: Consumer[] = [];
@@ -541,6 +554,10 @@ class ConnectionPool {
 
   listConsumers(contextId: string, stream: string): Promise<Consumer[]> {
     return this.require(contextId).listConsumers(stream);
+  }
+
+  streamSubjects(contextId: string, stream: string): Promise<Record<string, number>> {
+    return this.require(contextId).streamSubjects(stream);
   }
 
   listKvBuckets(contextId: string): Promise<KvBucket[]> {

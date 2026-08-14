@@ -27,7 +27,9 @@ const CONSUMERS = [
   { stream: "ORDER_EVENTS", durable: "order-projector", filter: "orders.>" },
 ];
 
-const rid = (n) => `req-${n.toString(16).padStart(5, "0")}`;
+// Unique per run: re-seeding must not reuse ids, or a trace mixes unrelated flows.
+const RUN = Date.now().toString(36).slice(-4);
+const rid = (n) => `req-${RUN}-${n.toString(16).padStart(4, "0")}`;
 const pick = (a, i) => a[i % a.length];
 
 const nc = await connect({ servers: URL });

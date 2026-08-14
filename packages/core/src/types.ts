@@ -223,6 +223,75 @@ export interface ServerConnection {
   pendingBytes: number;
 }
 
+/**
+ * A subject that actually carries traffic, with an inferred payload shape.
+ *
+ * This is what lets an agent debug a system nobody described to it: the subject
+ * list comes from the server, and the field list from sampling real messages.
+ */
+export interface SubjectShape {
+  subject: string;
+  stream: string;
+  messages: number;
+  /** Sampled payload fields, empty when the payloads are not JSON. */
+  fields: SubjectField[];
+  /** How many messages the shape was inferred from. */
+  sampled: number;
+  encoding: PayloadEncoding | "mixed";
+  lastTs: number | null;
+}
+
+export interface SubjectField {
+  /** Dotted path, e.g. `order.total_cents`. */
+  path: string;
+  /** JSON types seen at this path, e.g. `["string"]` or `["number","null"]`. */
+  types: string[];
+  /** Fraction of sampled messages containing this path, 0-1. */
+  presence: number;
+  /** A short example value, truncated. */
+  example: string | null;
+}
+
+/** One step of a reconstructed causal chain. */
+export interface FlowStep {
+  subject: string;
+  stream: string;
+  timestamp: number;
+  /** Milliseconds since the previous step, null for the first. */
+  deltaMs: number | null;
+  /** `failed` when the payload signals an error, `dlq` for dead letters. */
+  status: "ok" | "failed" | "dlq";
+  /** Error text when the step failed. */
+  detail: string | null;
+  seq?: number;
+}
+
+/** A reconstructed end-to-end flow for one correlation id. */
+export interface Flow {
+  key: "request_id" | "correlation_id";
+  value: string;
+  steps: FlowStep[];
+  /** Wall-clock span of the whole flow. */
+  durationMs: number;
+  /** True when any step failed or landed in a dead-letter subject. */
+  failed: boolean;
+  /** The first step that failed, which is the one worth reading. */
+  failedAt: FlowStep | null;
+  streams: string[];
+}
+
+/** One thing that looks wrong right now. */
+export interface HealthFinding {
+  code: string;
+  severity: "warning" | "critical";
+  /** What is wrong, in one sentence. */
+  message: string;
+  /** Where: a stream, consumer, subject or the server itself. */
+  target: string;
+  /** The measurement behind the finding. */
+  value: number;
+}
+
 export interface Consumer {
   name: string;
   stream: string;

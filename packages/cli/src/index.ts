@@ -64,6 +64,9 @@ const LIVE_TOOLS = new Set([
   "natstrail.list_objects",
   "natstrail.get_server_health",
   "natstrail.list_server_connections",
+  "natstrail.discover_subjects",
+  "natstrail.reconstruct_flow",
+  "natstrail.get_health_summary",
 ]);
 
 main(process.argv.slice(2)).catch((err: unknown) => fail(err instanceof Error ? err.message : String(err)));
@@ -236,6 +239,21 @@ async function runCommand(args: string[]): Promise<void> {
 
   if (command[0] === "server" && command[1] === "connections") {
     await runMcpTool("natstrail.list_server_connections", command.slice(2), output);
+    return;
+  }
+
+  if (command[0] === "discover") {
+    await runMcpTool("natstrail.discover_subjects", command.slice(1), output);
+    return;
+  }
+
+  if (command[0] === "flow") {
+    await runMcpTool("natstrail.reconstruct_flow", command.slice(1), output);
+    return;
+  }
+
+  if (command[0] === "health") {
+    await runMcpTool("natstrail.get_health_summary", command.slice(1), output);
     return;
   }
 
@@ -766,6 +784,9 @@ Commands:
   kv history                 Revision history for one key (--bucket --key)
   obj list                   List Object Store buckets
   obj objects                List objects in a bucket (--bucket)
+  discover                   Discover subjects and infer payload shapes
+  flow                       Reconstruct a flow by --request-id or --correlation-id
+  health                     What looks broken right now, ranked
   server health              Server version, uptime, traffic and JetStream totals
   server connections         List client connections
   dlq search                 Search dead-letter messages

@@ -311,6 +311,7 @@ function executeIntegrationTool(name: string, input: Record<string, unknown>) {
     kvHistory: (bucket, key, limit) => connectionPool.kvHistory(target, bucket, key, limit),
     listObjectBuckets: () => connectionPool.listObjectBuckets(target),
     listObjects: (bucket, limit) => connectionPool.listObjects(target, bucket, limit),
+    streamSubjects: (stream) => connectionPool.streamSubjects(target, stream),
     serverHealth: () => fetchServerHealth(requireContext(target)),
     serverConnections: (max) => fetchServerConnections(requireContext(target), max),
   });

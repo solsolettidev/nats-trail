@@ -27,6 +27,11 @@ import {
   type ObjectEntry,
   type ServerConnection,
   type ServerHealth,
+  type SubjectShape,
+  inferFields,
+  reconstructFlow,
+  subjectsOfStream,
+  summarizeHealth,
 } from "@nats-trail/core";
 import { mcpTools, validateToolInput } from "./tools.js";
 
@@ -49,6 +54,7 @@ export interface McpRuntimeData {
   listObjects?: (bucket: string, limit: number) => Promise<ObjectEntry[]>;
   serverHealth?: () => Promise<ServerHealth>;
   serverConnections?: (limit: number) => Promise<ServerConnection[]>;
+  streamSubjects?: (stream: string) => Promise<Record<string, number>>;
 }
 
 /** Page size used when a tool scans a stream window incrementally. */
@@ -388,6 +394,100 @@ async function executeMcpToolInner(name: string, input: Record<string, unknown>,
     if (!data.serverConnections) return notImplemented(name, limit);
     try {
       return createQueryEnvelope({ query: { tool: name, contextId: input.contextId }, results: await data.serverConnections(limit), limit });
+    } catch (err) {
+      return toolError(name, limit, err);
+    }
+  }
+
+  if (name === "natstrail.discover_subjects") {
+    const error = validateConnectedContext(name, input, data);
+    if (error) return error;
+    if (!data.listStreams || !data.streamSubjects || !data.queryStreamMessages) return notImplemented(name, limit);
+    const sample = Math.min(Math.max(numberInput(input.sample) ?? 10, 1), 100);
+    const onlyStream = stringInput(input.stream);
+    const onlySubject = stringInput(input.subject);
+    try {
+      const streams = (await data.listStreams()).filter((s) => !onlyStream || s.name === onlyStream);
+      const results: SubjectShape[] = [];
+      const warnings: QueryWarning[] = [];
+
+      for (const stream of streams) {
+        if (results.length >= limit) break;
+        // Skip the KV and Object Store backing streams: their subjects are an
+        // implementation detail, not part of the application's topology.
+        if (/^(KV|OBJ)_/.test(stream.name)) continue;
+        const seen = await data.streamSubjects(stream.name).catch(() => ({}));
+        for (const { subject, messages } of subjectsOfStream(stream, seen)) {
+          if (results.length >= limit) break;
+          if (onlySubject && !subjectMatches(onlySubject, subject)) continue;
+          const page = await data.queryStreamMessages({
+            stream: stream.name,
+            subject,
+            limit: sample,
+            maxScan: numberInput(input.maxScan),
+          });
+          warnings.push(...page.warnings.map((w) => ({ ...w, message: `${stream.name}/${subject}: ${w.message}` })));
+          const encodings = new Set(page.messages.map((m) => m.encoding ?? "text"));
+          results.push({
+            subject,
+            stream: stream.name,
+            messages,
+            fields: inferFields(page.messages),
+            sampled: page.messages.length,
+            encoding: encodings.size === 1 ? [...encodings][0] : encodings.size === 0 ? "text" : "mixed",
+            lastTs: page.messages.length ? page.messages[page.messages.length - 1].timestamp : null,
+          });
+        }
+      }
+      return createQueryEnvelope({ query: { tool: name, contextId: input.contextId, stream: onlyStream, subject: onlySubject, sample }, results, limit, warnings });
+    } catch (err) {
+      return toolError(name, limit, err);
+    }
+  }
+
+  if (name === "natstrail.reconstruct_flow") {
+    const error = validateConnectedContext(name, input, data);
+    if (error) return error;
+    const requestId = stringInput(input.requestId);
+    const correlationId = stringInput(input.correlationId);
+    if (!requestId && !correlationId) return inputError(name, limit, "requestId or correlationId is required");
+    // Reuse the trace tool rather than re-implementing the cross-stream sweep.
+    const key = requestId ? "request_id" : "correlation_id";
+    const traceTool = requestId ? "natstrail.trace_by_request_id" : "natstrail.trace_by_correlation_id";
+    const trace = await executeMcpToolInner(traceTool, input, data);
+    if (trace.errors.length) return trace;
+    const flow = reconstructFlow(key, (requestId ?? correlationId)!, trace.results as AgentMessage[]);
+    return createQueryEnvelope({
+      query: { tool: name, contextId: input.contextId, [key]: requestId ?? correlationId },
+      results: [flow],
+      limit,
+      warnings: trace.warnings,
+    });
+  }
+
+  if (name === "natstrail.get_health_summary") {
+    const error = validateConnectedContext(name, input, data);
+    if (error) return error;
+    if (!data.listStreams || !data.listConsumers) return notImplemented(name, limit);
+    try {
+      const streams = await data.listStreams();
+      const consumers: Consumer[] = [];
+      for (const stream of streams) {
+        consumers.push(...(await data.listConsumers(stream.name).catch(() => [])));
+      }
+      // Dead letters are counted from stream state, not by scanning payloads.
+      const dlqCounts: Record<string, number> = {};
+      if (data.streamSubjects) {
+        for (const stream of streams) {
+          const seen = await data.streamSubjects(stream.name).catch(() => ({}));
+          for (const [subject, count] of Object.entries(seen)) {
+            if (isDlqSubject(subject)) dlqCounts[subject] = count;
+          }
+        }
+      }
+      const server = data.serverHealth ? await data.serverHealth().catch(() => null) : null;
+      const results = summarizeHealth({ streams, consumers, dlqCounts, server });
+      return createQueryEnvelope({ query: { tool: name, contextId: input.contextId }, results, limit });
     } catch (err) {
       return toolError(name, limit, err);
     }

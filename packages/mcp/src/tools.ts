@@ -67,6 +67,27 @@ export const mcpTools: McpToolDefinition[] = [
   tool("natstrail.list_objects", "List object metadata in an Object Store bucket.", { contextId: { type: "string" }, bucket: { type: "string" }, limit: limitProperty }, ["contextId", "bucket", "limit"], SCAN_TIMEOUT_MS),
   tool("natstrail.get_server_health", "Server version, uptime, traffic, memory and JetStream totals.", { contextId: { type: "string" }, limit: limitProperty }),
   tool("natstrail.list_server_connections", "List client connections with traffic and idle time.", { contextId: { type: "string" }, limit: limitProperty }),
+  tool(
+    "natstrail.discover_subjects",
+    "Discover which subjects carry traffic and what shape their payloads have. Use this first when the topology is unknown.",
+    { contextId: { type: "string" }, stream: { type: "string" }, subject: { type: "string" }, sample: { type: "integer", minimum: 1, maximum: 100, description: "Messages to sample per subject for shape inference (default 10)." }, limit: limitProperty, maxScan: maxScanProperty },
+    ["contextId", "limit"],
+    SCAN_TIMEOUT_MS,
+  ),
+  tool(
+    "natstrail.reconstruct_flow",
+    "Reconstruct the causal chain for one request_id or correlation_id: ordered steps, elapsed time between them, and which step failed.",
+    { contextId: { type: "string" }, requestId: { type: "string" }, correlationId: { type: "string" }, limit: limitProperty, fromTs: fromTsProperty, toTs: toTsProperty, maxScan: maxScanProperty },
+    ["contextId", "limit"],
+    SCAN_TIMEOUT_MS,
+  ),
+  tool(
+    "natstrail.get_health_summary",
+    "What looks broken right now: consumers falling behind, redeliveries, dead letters and slow consumers, ranked worst first.",
+    { contextId: { type: "string" }, limit: limitProperty },
+    ["contextId", "limit"],
+    SCAN_TIMEOUT_MS,
+  ),
 ];
 
 export function validateToolInput(name: string, input: Record<string, unknown>): ToolInputError[] {

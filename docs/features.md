@@ -147,3 +147,32 @@ CLI only — the MCP runtime stays read-only by construction.
 
 > Protobuf and msgpack are shown as byte dumps, not decoded into fields. Decoding protobuf needs a
 > schema descriptor per subject, and msgpack needs a decoding dependency; both are open decisions.
+
+## Agent-native insight
+
+Three tools that exist because an agent needs conclusions, not counters.
+
+### Subject discovery — `natstrail.discover_subjects`
+Lists the subjects that actually carry traffic (from server-side subject state, not declared
+patterns) and infers each one's payload shape by sampling real messages: dotted field paths, the
+JSON types seen at each path, how consistently each field is present, and an example value. Nested
+objects become dotted paths; arrays collapse to a single `[]` segment. KV and Object Store backing
+streams are skipped.
+
+This is what lets an agent debug a topology nobody described to it.
+
+### Flow reconstruction — `natstrail.reconstruct_flow`
+Takes one `request_id` or `correlation_id` and returns the causal chain: ordered steps with the
+elapsed time between them, which streams took part, whether the flow failed, and the **first**
+failing step with its error text — the one actually worth reading.
+
+Failure is detected from the payload (`error`, `reason`, `message`) and from the subject
+(`*.failed`, `*.error`, dead-letter naming).
+
+### Health summary — `natstrail.get_health_summary`
+Answers "what is broken right now" with ranked findings instead of raw metrics: consumers falling
+behind, redeliveries that point at repeated processing failures, dead-letter volume, and slow
+consumers reported by the server. Critical first, then by magnitude.
+
+All three are read-only, bounded by the same envelope, and available as `nats-trail discover`,
+`nats-trail flow` and `nats-trail health`.
