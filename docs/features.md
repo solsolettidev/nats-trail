@@ -183,3 +183,38 @@ steps, the stream each came from, and the failing step highlighted with its erro
 broken?" button runs the health summary in place.
 
 Backed by `/api/flow?requestId=…` and `/api/health-summary`.
+
+## Write operations (humans only)
+
+NATS Trail can now change state, on the human surfaces only.
+
+| Operation | UI | CLI | Guard |
+|---|---|---|---|
+| Publish | Core panel | `nats-trail publish` | Non-local contexts require typing the environment name |
+| Request / reply | Core panel | `nats-trail request` | Bounded timeout, 30s max |
+| Purge stream | JetStream row | `nats-trail purge` | Confirmation dialog / `--yes` |
+| Delete message | — | `nats-trail delete message` | `--yes` |
+| Delete consumer | Consumer row | `nats-trail delete consumer` | Confirmation dialog / `--yes` |
+| Delete stream | — | `nats-trail delete stream` | Must name the stream back via `--confirm` |
+
+### How the agent stays locked out
+
+- Mutations live under `/api/mutate`, behind `mutationAuth`.
+- `executeIntegrationTool` hands the MCP runtime an object containing read functions only. There is
+  no disabled `publish` — the runtime has nothing to call.
+- CLI write commands refuse to run under `--agent`.
+- `test/write-boundary.test.mjs` asserts all of the above by reading the source, so the guarantee
+  fails loudly if someone opens a path.
+
+### Token scopes
+
+Bearer tokens are read-only unless granted `write`:
+
+```bash
+NATS_TRAIL_TOKENS=reader:tok-read,writer:tok-write:write
+```
+
+Or in `data/tokens.json`: `[{ "name": "writer", "token": "…", "scopes": ["write"] }]`.
+
+A `read` token attempting a mutation gets `403` naming the token. Every mutation is audited with its
+action, target and arguments, success or failure, so a write can be reconstructed afterwards.

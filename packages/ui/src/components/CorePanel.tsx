@@ -5,6 +5,7 @@ import { MessageViewer } from "./MessageViewer.js";
 import { MessageFilters, applyFilters, emptyFilters, type FilterState } from "./MessageFilters.js";
 import { MessageList, SplitWorkspace } from "./MessageList.js";
 import { SavedFilters } from "./SavedFilters.js";
+import { Publisher } from "./Publisher.js";
 import { Empty, ErrorState } from "./states.js";
 import { Icon } from "./ui.js";
 
@@ -14,9 +15,11 @@ interface Props {
   connected: boolean;
   initialSubject: string | null;
   onSubjectChange: (subject: string) => void;
+  /** Drives the publish confirmation gate; null when disconnected. */
+  environment: string | null;
 }
 
-export function CorePanel({ connected, initialSubject, onSubjectChange }: Props) {
+export function CorePanel({ connected, initialSubject, onSubjectChange, environment }: Props) {
   const live = useLiveMessages();
   const [input, setInput] = useState(initialSubject ?? "");
   const [selected, setSelected] = useState<Message | null>(null);
@@ -104,6 +107,8 @@ export function CorePanel({ connected, initialSubject, onSubjectChange }: Props)
           {live.subject ? `live · ${live.subject}` : "not subscribed"}
         </span>
       </form>
+
+      {connected && <Publisher environment={environment} initialSubject={input} />}
 
       {chips.length > 0 && (
         <div className="chips">

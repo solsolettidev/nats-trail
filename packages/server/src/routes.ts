@@ -10,7 +10,7 @@ import {
 import { executeMcpTool, mcpTools } from "@nats-trail/mcp";
 import { connectionPool } from "./connection.js";
 import { fetchServerConnections, fetchServerHealth } from "./monitoring.js";
-import { authEnabled, authenticate } from "./auth.js";
+import { authEnabled, authenticate, canWrite } from "./auth.js";
 import {
   loadContexts,
   appendAuditEntry,
@@ -298,6 +298,138 @@ function requireContext(contextId: string): Context {
   if (!ctx) throw new Error(`Unknown context: ${contextId || "no context"}`);
   return ctx;
 }
+
+// ---- Mutations -------------------------------------------------------------
+//
+// Every route below changes state on the NATS server. They are mounted under
+// /api/mutate, gated by `mutationAuth`, and audited with their arguments.
+//
+// None of this is reachable from the MCP runtime: `executeIntegrationTool`
+// hands it an object with read functions only, so an agent has no write path to
+// call rather than a disabled one.
+
+const mutations = Router();
+
+/**
+ * Local human sessions are allowed (the bridge binds to loopback and the UI has
+ * no login). Once bearer tokens are configured, a mutation additionally requires
+ * a token carrying the `write` scope — `read` tokens are refused here.
+ */
+function mutationAuth(req: Request, res: Response, next: NextFunction): void {
+  const raw = req.header("authorization") ?? (typeof req.query.token === "string" ? req.query.token : undefined);
+  const identity = authenticate(raw);
+  if (authEnabled()) {
+    if (!identity) {
+      res.status(401).json({ error: normalizeError("missing or invalid bearer token") });
+      return;
+    }
+    if (!canWrite(identity)) {
+      res.status(403).json({ error: normalizeError(`token "${identity.name}" is read-only; mutations need the write scope`) });
+      return;
+    }
+  }
+  res.locals.identity = identity?.name ?? null;
+  next();
+}
+
+mutations.use(mutationAuth);
+
+/** Record a mutation with its arguments so it can be reconstructed later. */
+function auditMutation(req: Request, res: Response, action: string, target: string, args: Record<string, unknown>, errorCount = 0): void {
+  appendAuditEntry({
+    timestamp: Date.now(),
+    origin: readAuditOrigin(req.header("x-nats-trail-origin")),
+    identity: (res.locals.identity as string | null) ?? null,
+    tool: action,
+    contextId: requestContextId(req) || null,
+    resultCount: errorCount ? 0 : 1,
+    errorCount,
+    mutation: { action, target, args },
+  });
+}
+
+mutations.post("/publish", async (req, res) => {
+  const { subject, payload, headers } = req.body as { subject?: string; payload?: string; headers?: Record<string, string> };
+  if (!subject?.trim()) return res.status(400).json({ error: normalizeError("subject is required") });
+  try {
+    await connectionPool.publish(requestContextId(req), subject.trim(), payload ?? "", headers);
+    auditMutation(req, res, "publish", subject.trim(), { bytes: (payload ?? "").length, headers: headers ? Object.keys(headers) : [] });
+    res.json({ ok: true, subject: subject.trim() });
+  } catch (err) {
+    auditMutation(req, res, "publish", subject.trim(), {}, 1);
+    res.status(409).json({ error: normalizeError(err) });
+  }
+});
+
+mutations.post("/request", async (req, res) => {
+  const { subject, payload, timeoutMs } = req.body as { subject?: string; payload?: string; timeoutMs?: number };
+  if (!subject?.trim()) return res.status(400).json({ error: normalizeError("subject is required") });
+  const timeout = Math.min(Math.max(Number(timeoutMs) || 5000, 100), 30_000);
+  try {
+    const reply = await connectionPool.request(requestContextId(req), subject.trim(), payload ?? "", timeout);
+    auditMutation(req, res, "request", subject.trim(), { timeoutMs: timeout });
+    res.json(reply);
+  } catch (err) {
+    auditMutation(req, res, "request", subject.trim(), { timeoutMs: timeout }, 1);
+    res.status(409).json({ error: normalizeError(err) });
+  }
+});
+
+mutations.post("/streams/:name/purge", async (req, res) => {
+  const { subject, keep } = req.body as { subject?: string; keep?: number };
+  try {
+    const purged = await connectionPool.purgeStream(requestContextId(req), req.params.name, {
+      subject: subject?.trim() || undefined,
+      keep: Number.isFinite(Number(keep)) && Number(keep) > 0 ? Number(keep) : undefined,
+    });
+    auditMutation(req, res, "stream.purge", req.params.name, { subject, keep, purged });
+    res.json({ ok: true, purged });
+  } catch (err) {
+    auditMutation(req, res, "stream.purge", req.params.name, { subject, keep }, 1);
+    res.status(409).json({ error: normalizeError(err) });
+  }
+});
+
+mutations.delete("/streams/:name/messages/:seq", async (req, res) => {
+  const seq = Number(req.params.seq);
+  if (!Number.isFinite(seq) || seq <= 0) return res.status(400).json({ error: normalizeError("seq must be a positive integer") });
+  try {
+    const deleted = await connectionPool.deleteMessage(requestContextId(req), req.params.name, seq);
+    auditMutation(req, res, "message.delete", `${req.params.name}#${seq}`, { seq });
+    res.json({ ok: deleted });
+  } catch (err) {
+    auditMutation(req, res, "message.delete", `${req.params.name}#${seq}`, { seq }, 1);
+    res.status(409).json({ error: normalizeError(err) });
+  }
+});
+
+mutations.delete("/streams/:name/consumers/:consumer", async (req, res) => {
+  try {
+    const deleted = await connectionPool.deleteConsumer(requestContextId(req), req.params.name, req.params.consumer);
+    auditMutation(req, res, "consumer.delete", `${req.params.name}/${req.params.consumer}`, {});
+    res.json({ ok: deleted });
+  } catch (err) {
+    auditMutation(req, res, "consumer.delete", `${req.params.name}/${req.params.consumer}`, {}, 1);
+    res.status(409).json({ error: normalizeError(err) });
+  }
+});
+
+mutations.delete("/streams/:name", async (req, res) => {
+  // Deleting a stream destroys its messages, so the caller must name it back.
+  if (req.body?.confirm !== req.params.name) {
+    return res.status(400).json({ error: normalizeError(`confirm must equal the stream name to delete it: "${req.params.name}"`) });
+  }
+  try {
+    const deleted = await connectionPool.deleteStream(requestContextId(req), req.params.name);
+    auditMutation(req, res, "stream.delete", req.params.name, {});
+    res.json({ ok: deleted });
+  } catch (err) {
+    auditMutation(req, res, "stream.delete", req.params.name, {}, 1);
+    res.status(409).json({ error: normalizeError(err) });
+  }
+});
+
+router.use("/mutate", mutations);
 
 function selectedContextId(): string | null {
   return loadPreferences().selectedContextId;

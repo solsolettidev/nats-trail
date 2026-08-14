@@ -28,14 +28,34 @@ export interface AuditEntry {
   contextId: string | null;
   resultCount: number;
   errorCount: number;
+  /**
+   * Set for mutations only. A write must be reconstructable after the fact, so
+   * the arguments are recorded alongside the operation.
+   */
+  mutation?: {
+    action: string;
+    target: string;
+    args?: Record<string, unknown>;
+  };
 }
 
 export type AuditOrigin = "integration-api" | "cli" | "mcp" | "unknown";
+
+/**
+ * What a bearer token is allowed to do.
+ *
+ * `read` is the default and covers every query surface. `write` must be granted
+ * explicitly, and only ever reaches the mutation routes — never the MCP runtime,
+ * which has no write path to reach in the first place.
+ */
+export type TokenScope = "read" | "write";
 
 /** Bearer token accepted by the Integration API and the WebSocket endpoint. */
 export interface ApiToken {
   name: string;
   token: string;
+  /** Defaults to `["read"]` when a token does not declare its scopes. */
+  scopes?: TokenScope[];
 }
 
 const DEFAULT_PREFS: Preferences = {
@@ -91,9 +111,9 @@ export function savePreferences(prefs: Preferences): void {
 }
 
 export function loadTokens(): ApiToken[] {
-  return readJson<ApiToken[]>(join(DATA_DIR, "tokens.json"), []).filter(
-    (item) => typeof item?.name === "string" && typeof item?.token === "string" && item.token.length > 0,
-  );
+  return readJson<ApiToken[]>(join(DATA_DIR, "tokens.json"), [])
+    .filter((item) => typeof item?.name === "string" && typeof item?.token === "string" && item.token.length > 0)
+    .map((item) => ({ ...item, scopes: normalizeScopes(item.scopes) }));
 }
 
 export function appendAuditEntry(entry: AuditEntry): void {
@@ -103,4 +123,11 @@ export function appendAuditEntry(entry: AuditEntry): void {
 
 export function loadAuditEntries(): AuditEntry[] {
   return readJson<AuditEntry[]>(AUDIT_FILE, []);
+}
+
+/** Tokens default to read-only; write must be granted deliberately. */
+function normalizeScopes(scopes: unknown): TokenScope[] {
+  if (!Array.isArray(scopes)) return ["read"];
+  const valid = scopes.filter((s): s is TokenScope => s === "read" || s === "write");
+  return valid.length ? [...new Set<TokenScope>(["read", ...valid])] : ["read"];
 }

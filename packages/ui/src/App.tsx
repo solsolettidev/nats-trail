@@ -187,6 +187,7 @@ export function App() {
                 connected={connected}
                 initialSubject={lastSubject}
                 onSubjectChange={onSubjectChange}
+                environment={env}
               />
             )}
             {tab === "jetstream" && <JetStreamPanel connected={connected} />}

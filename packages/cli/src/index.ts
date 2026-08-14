@@ -27,6 +27,13 @@ const PREFS_FILE = join(DATA_DIR, "preferences.json");
 const FILTERS_FILE = join(DATA_DIR, "filters.json");
 let interactiveMode = false;
 
+/**
+ * True when the current invocation asked for agent-shaped output. Hoisted
+ * because `stripKnownFlags` removes --agent before commands are dispatched,
+ * so a mutation guard cannot find it by inspecting its own arguments.
+ */
+let agentMode = false;
+
 const DEFAULT_PREFS: Preferences = {
   selectedContextId: null,
   lastSubject: null,
@@ -37,7 +44,10 @@ const DEFAULT_PREFS: Preferences = {
   messageViewerMode: "tree",
 };
 
-const NUMERIC_FLAGS = new Set(["limit", "seq", "timeoutMs", "fromTs", "toTs", "maxScan", "port"]);
+const NUMERIC_FLAGS = new Set(["limit", "seq", "timeoutMs", "fromTs", "toTs", "maxScan", "port", "keep"]);
+
+/** Flags that are switches rather than key/value pairs. */
+const BOOLEAN_FLAGS = new Set(["yes", "noAutoConnect"]);
 
 /**
  * Tools require an explicit limit so agents never ask for unbounded results. A
@@ -81,6 +91,7 @@ async function main(args: string[]): Promise<void> {
 
 async function runCommand(args: string[]): Promise<void> {
   const agent = args.includes("--agent");
+  agentMode = agent;
   const output = agent ? "json" : readOutput(args);
   const command = stripKnownFlags(args);
 
@@ -239,6 +250,36 @@ async function runCommand(args: string[]): Promise<void> {
 
   if (command[0] === "server" && command[1] === "connections") {
     await runMcpTool("natstrail.list_server_connections", command.slice(2), output);
+    return;
+  }
+
+  if (command[0] === "publish") {
+    await publishMessage(command.slice(1), output);
+    return;
+  }
+
+  if (command[0] === "request") {
+    await requestReply(command.slice(1));
+    return;
+  }
+
+  if (command[0] === "purge") {
+    await purgeStream(command.slice(1), output);
+    return;
+  }
+
+  if (command[0] === "delete" && command[1] === "message") {
+    await deleteMessage(command.slice(2), output);
+    return;
+  }
+
+  if (command[0] === "delete" && command[1] === "consumer") {
+    await deleteConsumer(command.slice(2), output);
+    return;
+  }
+
+  if (command[0] === "delete" && command[1] === "stream") {
+    await deleteStream(command.slice(2), output);
     return;
   }
 
@@ -557,7 +598,7 @@ function readNamedArgs(args: string[]): Record<string, unknown> {
     if (!key.startsWith("--")) continue;
     const value = args[i + 1];
     const inputKey = toCamelCase(key.slice(2));
-    if (key === "--no-auto-connect") {
+    if (BOOLEAN_FLAGS.has(inputKey)) {
       input[inputKey] = true;
       continue;
     }
@@ -750,6 +791,104 @@ async function serve(args: string[]): Promise<void> {
   if (!hasUi) console.log("[nats-trail] UI bundle not found; API only.");
 }
 
+// ---- Mutations -------------------------------------------------------------
+//
+// Write commands always go through the bridge, never through the MCP runtime.
+// They refuse to run under --agent: an agent invoking the CLI must not be able
+// to reach a mutation just because a human could.
+
+/** Reject a mutation attempted from an agent-shaped invocation. */
+function requireHumanInvocation(action: string): void {
+  if (agentMode) {
+    fail(`${action} is not available in --agent mode: mutations are for humans and scripts, not agents`);
+  }
+}
+
+/** Destructive commands require --yes, so a typo cannot purge a stream. */
+function requireConfirmation(action: string, target: string, input: Record<string, unknown>): void {
+  if (input.yes !== true) {
+    fail(`${action} on ${target} is destructive. Re-run with --yes to confirm.`);
+  }
+}
+
+async function publishMessage(args: string[], output: Output): Promise<void> {
+  requireHumanInvocation("publish");
+  const input = readNamedArgs(args);
+  const subject = stringValue(input.subject);
+  if (!subject) fail("Usage: nats-trail publish --subject <subject> --payload <json-or-text>");
+  const result = await bridgePost<{ ok: boolean }>("/mutate/publish", {
+    subject,
+    payload: stringValue(input.payload) ?? "",
+  });
+  if (output === "json" || output === "ndjson") printJson(result);
+  else console.log(`published to ${subject}`);
+}
+
+async function requestReply(args: string[]): Promise<void> {
+  requireHumanInvocation("request");
+  const input = readNamedArgs(args);
+  const subject = stringValue(input.subject);
+  if (!subject) fail("Usage: nats-trail request --subject <subject> --payload <json-or-text> [--timeout-ms 5000]");
+  const reply = await bridgePost<Record<string, unknown>>("/mutate/request", {
+    subject,
+    payload: stringValue(input.payload) ?? "",
+    timeoutMs: numberValue(input.timeoutMs),
+  });
+  printJson(reply);
+}
+
+async function purgeStream(args: string[], output: Output): Promise<void> {
+  requireHumanInvocation("purge");
+  const input = readNamedArgs(args);
+  const stream = stringValue(input.stream);
+  if (!stream) fail("Usage: nats-trail purge --stream <name> [--subject <filter>] [--keep <n>] --yes");
+  requireConfirmation("purge", stream, input);
+  const result = await bridgePost<{ purged: number }>(`/mutate/streams/${encodeURIComponent(stream)}/purge`, {
+    subject: stringValue(input.subject),
+    keep: numberValue(input.keep),
+  });
+  if (output === "json" || output === "ndjson") printJson(result);
+  else console.log(`purged ${result.purged} messages from ${stream}`);
+}
+
+async function deleteMessage(args: string[], output: Output): Promise<void> {
+  requireHumanInvocation("delete message");
+  const input = readNamedArgs(args);
+  const stream = stringValue(input.stream);
+  const seq = numberValue(input.seq);
+  if (!stream || !seq) fail("Usage: nats-trail delete message --stream <name> --seq <n> --yes");
+  requireConfirmation("delete message", `${stream}#${seq}`, input);
+  await bridgeDelete(`/mutate/streams/${encodeURIComponent(stream)}/messages/${seq}`);
+  if (output === "text") console.log(`deleted ${stream}#${seq}`);
+}
+
+async function deleteConsumer(args: string[], output: Output): Promise<void> {
+  requireHumanInvocation("delete consumer");
+  const input = readNamedArgs(args);
+  const stream = stringValue(input.stream);
+  const consumer = stringValue(input.consumer);
+  if (!stream || !consumer) fail("Usage: nats-trail delete consumer --stream <name> --consumer <name> --yes");
+  requireConfirmation("delete consumer", `${stream}/${consumer}`, input);
+  await bridgeDelete(`/mutate/streams/${encodeURIComponent(stream)}/consumers/${encodeURIComponent(consumer)}`);
+  if (output === "text") console.log(`deleted consumer ${stream}/${consumer}`);
+}
+
+async function deleteStream(args: string[], output: Output): Promise<void> {
+  requireHumanInvocation("delete stream");
+  const input = readNamedArgs(args);
+  const stream = stringValue(input.stream);
+  if (!stream) fail("Usage: nats-trail delete stream --stream <name> --confirm <name> --yes");
+  requireConfirmation("delete stream", stream, input);
+  if (stringValue(input.confirm) !== stream) {
+    fail(`--confirm must equal the stream name to delete it: "${stream}"`);
+  }
+  await bridgeRequest(`/mutate/streams/${encodeURIComponent(stream)}`, {
+    method: "DELETE",
+    body: JSON.stringify({ confirm: stream }),
+  });
+  if (output === "text") console.log(`deleted stream ${stream}`);
+}
+
 function printHelp(): void {
   console.log(`nats-trail <command>
 
@@ -792,7 +931,16 @@ Commands:
   dlq search                 Search dead-letter messages
   sentry enrich              Collect trace and DLQ context for Sentry
 
+Write commands (human and scripts only, never --agent):
+  publish                    Publish to a subject (--subject --payload)
+  request                    Request/reply on a subject (--subject --payload)
+  purge                      Purge a stream (--stream [--subject] [--keep]) --yes
+  delete message             Delete one message (--stream --seq) --yes
+  delete consumer            Delete a consumer (--stream --consumer) --yes
+  delete stream              Delete a stream (--stream --confirm <name>) --yes
+
 Options:
+  --yes                       Confirm a destructive write
   --port <n> / --host <addr>  Bind options for serve (default: 127.0.0.1:4000)
   --limit <n>                 Max results per query (default: 50, max 200)
   --output text|json|ndjson   Output format (default: text)

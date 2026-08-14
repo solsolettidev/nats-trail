@@ -99,6 +99,30 @@ export const api = {
     req<Flow>(`/flow?correlationId=${encodeURIComponent(correlationId)}`),
   healthSummary: () => req<HealthFinding[]>("/health-summary"),
 
+  // ---- Mutations ----------------------------------------------------------
+  // These reach /api/mutate, which the MCP runtime has no path to.
+  publish: (subject: string, payload: string) =>
+    req<{ ok: boolean }>("/mutate/publish", { method: "POST", body: JSON.stringify({ subject, payload }) }),
+  request: (subject: string, payload: string, timeoutMs = 5000) =>
+    req<Message>("/mutate/request", { method: "POST", body: JSON.stringify({ subject, payload, timeoutMs }) }),
+  purgeStream: (stream: string, opts: { subject?: string; keep?: number } = {}) =>
+    req<{ purged: number }>(`/mutate/streams/${encodeURIComponent(stream)}/purge`, {
+      method: "POST",
+      body: JSON.stringify(opts),
+    }),
+  deleteMessage: (stream: string, seq: number) =>
+    req<{ ok: boolean }>(`/mutate/streams/${encodeURIComponent(stream)}/messages/${seq}`, { method: "DELETE" }),
+  deleteConsumer: (stream: string, consumer: string) =>
+    req<{ ok: boolean }>(
+      `/mutate/streams/${encodeURIComponent(stream)}/consumers/${encodeURIComponent(consumer)}`,
+      { method: "DELETE" },
+    ),
+  deleteStream: (stream: string) =>
+    req<{ ok: boolean }>(`/mutate/streams/${encodeURIComponent(stream)}`, {
+      method: "DELETE",
+      body: JSON.stringify({ confirm: stream }),
+    }),
+
   serverHealth: () => req<ServerHealth>("/server/health"),
   serverConnections: () => req<ServerConnection[]>("/server/connections"),
 };

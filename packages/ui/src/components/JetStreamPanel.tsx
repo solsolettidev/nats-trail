@@ -5,6 +5,7 @@ import { MessageViewer } from "./MessageViewer.js";
 import { MessageFilters, applyFilters, emptyFilters, type FilterState } from "./MessageFilters.js";
 import { MessageList, SplitWorkspace } from "./MessageList.js";
 import { SavedFilters } from "./SavedFilters.js";
+import { ConfirmAction } from "./ConfirmAction.js";
 import { Loading, Empty, ErrorState } from "./states.js";
 import { Badge, Icon, fmtBytes, fmtInt } from "./ui.js";
 
@@ -36,6 +37,7 @@ export function JetStreamPanel({ connected }: { connected: boolean }) {
   const live = useJetStreamMessages();
 
   const [filters, setFilters] = useState<FilterState>(emptyFilters);
+  const [pending, setPending] = useState<{ label: string; detail: string; run: () => Promise<unknown> } | null>(null);
   const filtered = useMemo(() => applyFilters(live.messages, filters), [live.messages, filters]);
   const [recentStreams, setRecentStreams] = useState<string[]>([]);
 
@@ -187,7 +189,7 @@ export function JetStreamPanel({ connected }: { connected: boolean }) {
                     {s.retention} · {s.storage} · r{s.replicas} · {formatLimit(s.maxMessages)} msgs ·{" "}
                     {formatLimit(s.maxBytes)} B
                   </td>
-                  <td>
+                  <td className="rowactions">
                     <button
                       className="btn btn--sm"
                       onClick={(e) => {
@@ -196,6 +198,20 @@ export function JetStreamPanel({ connected }: { connected: boolean }) {
                       }}
                     >
                       <Icon name="arrow-line-up-right" /> Messages
+                    </button>
+                    <button
+                      className="btn btn--sm btn--danger"
+                      title="Purge every message in this stream"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPending({
+                          label: `Purge ${s.name}`,
+                          detail: `Deletes all ${fmtInt(s.messages)} messages in ${s.name}. The stream itself stays.`,
+                          run: () => api.purgeStream(s.name).then(refresh),
+                        });
+                      }}
+                    >
+                      <Icon name="eraser" /> Purge
                     </button>
                   </td>
                 </tr>
@@ -259,7 +275,7 @@ export function JetStreamPanel({ connected }: { connected: boolean }) {
                       <td>
                         <ConsumerHealth c={c} />
                       </td>
-                      <td>
+                      <td className="rowactions">
                         <button
                           className="btn btn--sm btn--icon"
                           title="Inspect messages"
@@ -269,6 +285,20 @@ export function JetStreamPanel({ connected }: { connected: boolean }) {
                           }}
                         >
                           <Icon name="arrow-line-up-right" />
+                        </button>
+                        <button
+                          className="btn btn--sm btn--icon btn--danger"
+                          title="Delete this consumer"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPending({
+                              label: `Delete consumer ${c.name}`,
+                              detail: `Removes ${c.name} from ${c.stream}. Its ${fmtInt(c.pending)} pending messages stay in the stream.`,
+                              run: () => api.deleteConsumer(c.stream, c.name).then(() => selected && select(selected)),
+                            });
+                          }}
+                        >
+                          <Icon name="trash" />
                         </button>
                       </td>
                     </tr>
@@ -341,6 +371,17 @@ export function JetStreamPanel({ connected }: { connected: boolean }) {
             </div>
           </div>
         </>
+      )}
+      {pending && (
+        <ConfirmAction
+          label={pending.label}
+          detail={pending.detail}
+          onCancel={() => setPending(null)}
+          onConfirm={async () => {
+            await pending.run();
+            setPending(null);
+          }}
+        />
       )}
     </>
   );

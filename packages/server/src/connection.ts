@@ -297,6 +297,72 @@ class ManagedConnection {
     }));
   }
 
+  // ---- Mutations ----------------------------------------------------------
+  //
+  // These live on the connection, are reached only from the mutation routes,
+  // and are deliberately absent from the interface handed to the MCP runtime.
+
+  /** Publish a message to a subject. Core NATS, no JetStream ack expected. */
+  async publish(subject: string, payload: string, headers?: Record<string, string>): Promise<void> {
+    if (!this.nc || this.state.status !== "connected") throw new Error("Not connected to NATS");
+    const encoded = new TextEncoder().encode(payload);
+    if (headers && Object.keys(headers).length > 0) {
+      const { headers: makeHeaders } = await import("nats");
+      const h = makeHeaders();
+      for (const [key, value] of Object.entries(headers)) h.set(key, value);
+      this.nc.publish(subject, encoded, { headers: h });
+    } else {
+      this.nc.publish(subject, encoded);
+    }
+    await this.nc.flush();
+  }
+
+  /** Request/reply against a subject, with a bounded wait. */
+  async request(subject: string, payload: string, timeoutMs: number): Promise<Message> {
+    if (!this.nc || this.state.status !== "connected") throw new Error("Not connected to NATS");
+    const reply = await this.nc.request(subject, new TextEncoder().encode(payload), { timeout: timeoutMs });
+    return parseMessage({
+      subject: reply.subject,
+      data: decoder.decode(reply.data),
+      bytes: reply.data,
+      timestamp: Date.now(),
+      size: reply.data.length,
+    });
+  }
+
+  /** Purge a stream, optionally limited to one subject or keeping N messages. */
+  async purgeStream(stream: string, opts: { subject?: string; keep?: number }): Promise<number> {
+    const jsm = await this.requireJsm();
+    // The client models purge options as a union of mutually exclusive shapes,
+    // and an empty object matches none of them, so omit the argument entirely
+    // when purging everything.
+    const result =
+      opts.keep != null
+        ? await jsm.streams.purge(stream, opts.subject ? { filter: opts.subject, keep: opts.keep } : { keep: opts.keep })
+        : opts.subject
+          ? await jsm.streams.purge(stream, { filter: opts.subject })
+          : await jsm.streams.purge(stream);
+    return result.purged;
+  }
+
+  /** Delete one message by stream sequence. */
+  async deleteMessage(stream: string, seq: number): Promise<boolean> {
+    const jsm = await this.requireJsm();
+    return jsm.streams.deleteMessage(stream, seq);
+  }
+
+  /** Delete a consumer. */
+  async deleteConsumer(stream: string, consumer: string): Promise<boolean> {
+    const jsm = await this.requireJsm();
+    return jsm.consumers.delete(stream, consumer);
+  }
+
+  /** Delete a stream, and everything in it. */
+  async deleteStream(stream: string): Promise<boolean> {
+    const jsm = await this.requireJsm();
+    return jsm.streams.delete(stream);
+  }
+
   async getStreamMessage(stream: string, seq: number): Promise<Message | null> {
     const jsm = await this.requireJsm();
     const msg = await getDirectMessage(jsm, stream, seq);
@@ -558,6 +624,32 @@ class ConnectionPool {
 
   streamSubjects(contextId: string, stream: string): Promise<Record<string, number>> {
     return this.require(contextId).streamSubjects(stream);
+  }
+
+  // ---- Mutations ----------------------------------------------------------
+
+  publish(contextId: string, subject: string, payload: string, headers?: Record<string, string>): Promise<void> {
+    return this.require(contextId).publish(subject, payload, headers);
+  }
+
+  request(contextId: string, subject: string, payload: string, timeoutMs: number): Promise<Message> {
+    return this.require(contextId).request(subject, payload, timeoutMs);
+  }
+
+  purgeStream(contextId: string, stream: string, opts: { subject?: string; keep?: number }): Promise<number> {
+    return this.require(contextId).purgeStream(stream, opts);
+  }
+
+  deleteMessage(contextId: string, stream: string, seq: number): Promise<boolean> {
+    return this.require(contextId).deleteMessage(stream, seq);
+  }
+
+  deleteConsumer(contextId: string, stream: string, consumer: string): Promise<boolean> {
+    return this.require(contextId).deleteConsumer(stream, consumer);
+  }
+
+  deleteStream(contextId: string, stream: string): Promise<boolean> {
+    return this.require(contextId).deleteStream(stream);
   }
 
   listKvBuckets(contextId: string): Promise<KvBucket[]> {
