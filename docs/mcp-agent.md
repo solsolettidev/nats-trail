@@ -150,6 +150,30 @@ Sentry enrichment accepts `contextId`, optional `requestId`, optional `correlati
 It returns a single envelope result containing trace envelopes and a DLQ envelope.
 The endpoint delegates to the `natstrail.enrich_sentry` tool so MCP and HTTP return the same shape.
 
+## Listing on the MCP Registry
+
+`packages/mcp/server.json` is the registry manifest, and `mcpName` in `packages/mcp/package.json`
+is the verification field the registry matches it against. Both are kept in sync with the published
+version by `scripts/prepare-packages.mjs`, so a release cannot drift from its manifest.
+
+Publishing is two commands from a checkout, and needs the GitHub account that owns the
+`io.github.solsolettidev` namespace:
+
+```bash
+cd packages/mcp
+mcp-publisher login github
+mcp-publisher publish
+```
+
+Install `mcp-publisher` with `brew install mcp-publisher`, or grab a binary from the
+[registry releases](https://github.com/modelcontextprotocol/registry/releases).
+
+Verify afterwards:
+
+```bash
+curl "https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.solsolettidev/nats-trail"
+```
+
 ## Incident enrichment
 
 `natstrail.enrich_incident` returns one flat, destination-agnostic object rather than a bundle of

@@ -4,9 +4,22 @@ on:
   push:
     tags: ["v*"]
 
+# Publishes with npm trusted publishing (OIDC): no long-lived token, and
+# provenance attestations are generated automatically.
+#
+# Each package needs its trusted publisher configured once on npmjs.com
+# (Settings -> Trusted publisher) pointing at:
+#   owner/repo:   solsolettidev/nats-trail
+#   workflow:     release.yml
+#   environment:  release
+#
+# NODE_AUTH_TOKEN is read as a fallback so a release still works before those
+# five settings exist. Once they do, delete the secret — that is the point.
+
 jobs:
   publish:
     runs-on: ubuntu-latest
+    environment: release
     permissions:
       contents: read
       id-token: write
@@ -17,14 +30,21 @@ jobs:
           node-version: "22"
           registry-url: https://registry.npmjs.org
           cache: npm
+
+      # Trusted publishing needs npm 11.5.1+; the runner ships an older 10.x.
+      - run: npm install -g npm@latest
+      - run: npm --version
+
       - run: npm ci
       - run: npm run build
       - run: npm run typecheck
+      - run: npm test
+
       # Dependency order: core <- mcp <- ui/server <- nats-trail
       - name: Publish packages
         run: |
           for pkg in core mcp ui server cli; do
-            npm publish --workspace "packages/$pkg" --access public --provenance
+            npm publish --workspace "packages/$pkg" --access public
           done
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

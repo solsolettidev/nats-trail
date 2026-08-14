@@ -23,3 +23,6 @@ packages/*/README.md
 
 # Scratch scripts used to apply edits
 .tmp-edits/
+
+# Local npm pack output used to inspect tarballs
+.packtest/

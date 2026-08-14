@@ -30,7 +30,8 @@
   },
   "files": [
     "dist",
-    "!dist/.tsbuildinfo"
+    "!dist/.tsbuildinfo",
+    "server.json"
   ],
   "license": "Apache-2.0",
   "author": "Sol Soletti",
@@ -45,5 +46,6 @@
   },
   "engines": {
     "node": ">=20"
-  }
+  },
+  "mcpName": "io.github.solsolettidev/nats-trail"
 }

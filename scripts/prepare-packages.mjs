@@ -91,9 +91,16 @@ Read-only MCP tool contracts and stdio server for [NATS Trail](${REPO}).
 claude mcp add nats-trail -- npx -y @nats-trail/mcp
 \`\`\`
 
-Fourteen tools (\`natstrail.*\`) with explicit JSON input **and** output schemas, required result
+Twenty-five \`natstrail.*\` tools with explicit JSON input **and** output schemas, required result
 limits capped at 200, cursors, scan budgets with truncation warnings, per-tool timeouts, and
 structured error envelopes.
+
+Start here when the topology is unknown:
+
+- \`discover_subjects\` — which subjects carry traffic, and the payload shape inferred from real messages
+- \`reconstruct_flow\` — the causal chain behind one \`request_id\`, ending at the step that failed
+- \`get_health_summary\` — what is broken right now, ranked worst first
+- \`enrich_incident\` — flat incident context for Sentry, Grafana or Datadog
 
 **The runtime cannot write.** It receives an interface exposing only read functions, so publish,
 purge and delete are absent rather than disabled.
@@ -135,6 +142,33 @@ npx nats-trail serve
 Apache-2.0
 `,
 };
+
+/**
+ * Keep the MCP Registry manifest pinned to the package it describes.
+ *
+ * The registry verifies a server by matching `server.json`'s name to the
+ * `mcpName` in the published package.json, and rejects a version that does not
+ * exist on npm. Both are easy to forget on a release, so they are derived here
+ * rather than maintained by hand.
+ */
+function syncMcpManifest() {
+  const pkgPath = join(ROOT, "packages/mcp/package.json");
+  const manifestPath = join(ROOT, "packages/mcp/server.json");
+  const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+
+  if (!pkg.mcpName) throw new Error("packages/mcp/package.json is missing mcpName");
+  if (manifest.name !== pkg.mcpName) {
+    throw new Error(`server.json name (${manifest.name}) must equal package.json mcpName (${pkg.mcpName})`);
+  }
+
+  manifest.version = pkg.version;
+  manifest.packages = manifest.packages.map((entry) => ({ ...entry, version: pkg.version }));
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  console.log(`synced server.json to ${pkg.version}`);
+}
+
+syncMcpManifest();
 
 for (const [dir, readme] of Object.entries(readmes)) {
   const target = join(ROOT, "packages", dir);

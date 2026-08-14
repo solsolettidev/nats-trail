@@ -120,3 +120,22 @@ Two of those are guardrails rather than unit tests: one asserts every tool is `r
 required `limit`, and one reads `McpRuntimeData` to assert no write capability was ever added to the
 interface the agent runtime receives. If someone adds a write path to the agent surface, the suite
 fails.
+
+## Releasing
+
+```bash
+# bump every package and its cross-references, then
+npm run build && npm run typecheck && npm test
+git tag -a vX.Y.Z -m "..." && git push origin master --tags
+```
+
+The tag triggers `.github/workflows/release.yml`, which publishes via **npm trusted publishing
+(OIDC)** — no long-lived token, and provenance attestations are generated automatically.
+
+Each package needs its trusted publisher configured once on npmjs.com (*Settings → Trusted
+publisher*) pointing at `solsolettidev/nats-trail`, workflow `release.yml`, environment `release`.
+Until those five settings exist the workflow falls back to the `NPM_TOKEN` secret; delete the secret
+once they do, which is the whole point of the change.
+
+`prepare-packages.mjs` runs on `prepack` and regenerates each package's LICENSE and README, and
+pins `packages/mcp/server.json` to the version being published.

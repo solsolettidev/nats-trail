@@ -1,0 +1,36 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.solsolettidev/nats-trail",
+  "description": "Read-only observability for NATS and JetStream: discover subjects and their payload shapes, reconstruct the causal chain behind a request_id, and rank what is broken. Writes are absent from the runtime, not disabled.",
+  "repository": {
+    "url": "https://github.com/solsolettidev/nats-trail",
+    "source": "github"
+  },
+  "version": "0.3.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@nats-trail/mcp",
+      "version": "0.3.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "NATS_TRAIL_API",
+          "description": "URL of the NATS Trail bridge, e.g. http://127.0.0.1:4000. Without it the server answers only from local state and cannot reach JetStream.",
+          "isRequired": false,
+          "isSecret": false,
+          "format": "string"
+        },
+        {
+          "name": "NATS_TRAIL_TOKEN",
+          "description": "Bearer token for the bridge, required when it has auth enabled. A read-scoped token is enough: this server never mutates.",
+          "isRequired": false,
+          "isSecret": true,
+          "format": "string"
+        }
+      ]
+    }
+  ]
+}
