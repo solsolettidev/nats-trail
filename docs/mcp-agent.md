@@ -207,3 +207,7 @@ a shaper, never another query:
 | `POST /api/integration/enrich/sentry` | `message`, `level`, `fingerprint`, `contexts["nats-trail"]` |
 
 Pass `uiBaseUrl` to get a `traceUrl` deep link back into the Trace tab.
+
+> The registry caps `description` at 100 characters and enforces it at publish time.
+> `scripts/prepare-packages.mjs` checks it on every release so that is not discovered halfway
+> through one. Run `mcp-publisher validate` before `publish` to catch the rest.

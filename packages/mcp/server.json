@@ -1,7 +1,7 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.solsolettidev/nats-trail",
-  "description": "Read-only observability for NATS and JetStream: discover subjects and their payload shapes, reconstruct the causal chain behind a request_id, and rank what is broken. Writes are absent from the runtime, not disabled.",
+  "description": "Read-only NATS and JetStream observability: trace a request across streams, rank what is broken.",
   "repository": {
     "url": "https://github.com/solsolettidev/nats-trail",
     "source": "github"

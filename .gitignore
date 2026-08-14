@@ -26,3 +26,6 @@ packages/*/README.md
 
 # Local npm pack output used to inspect tarballs
 .packtest/
+
+# Downloaded tool, not part of the project
+mcp-publisher.exe

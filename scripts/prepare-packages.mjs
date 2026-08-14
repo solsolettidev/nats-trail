@@ -162,6 +162,14 @@ function syncMcpManifest() {
     throw new Error(`server.json name (${manifest.name}) must equal package.json mcpName (${pkg.mcpName})`);
   }
 
+  // The registry rejects a description over 100 characters, and it does so at
+  // publish time — long after a release is otherwise finished.
+  if (manifest.description.length > 100) {
+    throw new Error(
+      `server.json description is ${manifest.description.length} characters; the MCP Registry caps it at 100`,
+    );
+  }
+
   manifest.version = pkg.version;
   manifest.packages = manifest.packages.map((entry) => ({ ...entry, version: pkg.version }));
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
