@@ -51,7 +51,7 @@ none of it reaches the MCP runtime.
 | 2.1 | Publish to a subject | **done** — typed environment confirmation on non-local contexts |
 | 2.2 | Purge stream, delete message | **done** — confirmation dialog in the UI, `--yes` in the CLI, always audited |
 | 2.3 | Consumer create / update / delete | **done** — durable by name; create and update are the same call |
-| 2.4 | Stream create / update / delete | **done** — delete must name the stream back; illegal live changes surface the server error. Backup/restore still open |
+| 2.4 | Stream create / update / delete, config export/import | **done** — delete must name the stream back; illegal live changes surface the server error. Binary snapshots are **out**: `nats.js` exposes no snapshot API, and moving message bytes through the bridge would make it a file transfer service |
 | 2.5 | KV and Object Store writes | **done** — KV set with optimistic concurrency, delete leaving a tombstone, purge discarding history; object put and delete. Object put takes text, not a stream: the bridge is a debugging tool, not a file transfer service |
 | 2.6 | **Token scopes** (`read`, `write`) | **done** — tokens are read-only unless granted `write`; a read token gets 403 |
 | 2.7 | Audit mutations with their arguments | **done** — action, target and args, on success and failure |

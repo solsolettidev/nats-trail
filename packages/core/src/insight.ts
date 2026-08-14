@@ -7,6 +7,9 @@ import type {
   FlowStep,
   HealthFinding,
   Message,
+  NormalizedError,
+  StreamBlueprint,
+  StreamSpec,
   ServerHealth,
   Stream,
   SubjectField,
@@ -90,6 +93,62 @@ export function subjectsOfStream(stream: Stream, seen: Record<string, number>): 
     return entries.map(([subject, messages]) => ({ subject, messages })).sort((a, b) => b.messages - a.messages);
   }
   return stream.subjects.map((subject) => ({ subject, messages: 0 }));
+}
+
+/** Turn a live stream and its consumers into a portable blueprint. */
+export function toBlueprint(stream: Stream, consumers: Consumer[], exportedFrom?: { contextId: string; at: number }): StreamBlueprint {
+  return {
+    version: 1,
+    stream: {
+      name: stream.name,
+      subjects: stream.subjects,
+      retention: stream.retention as StreamSpec["retention"],
+      storage: stream.storage as StreamSpec["storage"],
+      replicas: stream.replicas,
+      // Zero means unlimited in JetStream; omit it so import keeps the default.
+      maxAge: stream.maxAge || undefined,
+      maxMessages: stream.maxMessages > 0 ? stream.maxMessages : undefined,
+      maxBytes: stream.maxBytes > 0 ? stream.maxBytes : undefined,
+      discard: stream.discard as StreamSpec["discard"],
+    },
+    consumers: consumers
+      // Only durables can be recreated; an ephemeral consumer has no identity
+      // to restore, so exporting one would produce an import that silently
+      // creates something different.
+      .filter((consumer) => consumer.durableName)
+      .map((consumer) => ({
+        name: consumer.durableName!,
+        filterSubjects: consumer.filterSubjects,
+      })),
+    exportedFrom,
+  };
+}
+
+/**
+ * Validate a blueprint read from disk. Returns errors rather than throwing, so
+ * a caller can report all of them at once.
+ */
+export function validateBlueprint(value: unknown): NormalizedError[] {
+  const errors: NormalizedError[] = [];
+  const fail = (code: string, message: string) => errors.push({ code, message, retriable: false });
+  const doc = value as Partial<StreamBlueprint> | null;
+
+  if (!doc || typeof doc !== "object") {
+    fail("blueprint.shape", "Blueprint must be a JSON object");
+    return errors;
+  }
+  if (doc.version !== 1) fail("blueprint.version", `Unsupported blueprint version: ${String(doc.version)}`);
+  if (!doc.stream?.name?.trim()) fail("blueprint.stream", "Blueprint is missing stream.name");
+  if (!Array.isArray(doc.stream?.subjects) || doc.stream.subjects.length === 0) {
+    fail("blueprint.subjects", "Blueprint needs at least one subject");
+  }
+  if (doc.consumers != null && !Array.isArray(doc.consumers)) {
+    fail("blueprint.consumers", "consumers must be an array when present");
+  }
+  for (const consumer of doc.consumers ?? []) {
+    if (!consumer?.name?.trim()) fail("blueprint.consumer", "Every consumer needs a name");
+  }
+  return errors;
 }
 
 /** Read an error-ish string out of a payload, for flow step status. */

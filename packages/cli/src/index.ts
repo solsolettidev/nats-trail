@@ -3,7 +3,23 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createInterface } from "node:readline/promises";
 import { join } from "node:path";
 import { stdin as input, stdout as output } from "node:process";
-import { createQueryEnvelope, sanitizeContext, validateContext, type AuthType, type ConnectionState, type Context, type Environment, type Filter } from "@nats-trail/core";
+import {
+  createQueryEnvelope,
+  sanitizeContext,
+  subjectMatches,
+  toBlueprint,
+  validateBlueprint,
+  validateContext,
+  type AuthType,
+  type ConnectionState,
+  type Consumer,
+  type Context,
+  type Environment,
+  type Filter,
+  type NormalizedError,
+  type Stream,
+  type StreamBlueprint,
+} from "@nats-trail/core";
 import { callIntegrationTool, executeMcpTool, mcpTools } from "@nats-trail/mcp";
 import WebSocket from "ws";
 
@@ -263,6 +279,16 @@ async function runCommand(args: string[]): Promise<void> {
 
   if (command[0] === "request") {
     await requestReply(command.slice(1));
+    return;
+  }
+
+  if (command[0] === "stream" && command[1] === "export") {
+    await exportStream(command.slice(2), output);
+    return;
+  }
+
+  if (command[0] === "stream" && command[1] === "import") {
+    await importStream(command.slice(2), output);
     return;
   }
 
@@ -877,6 +903,102 @@ function listValue(value: unknown): string[] | undefined {
   return raw.split(",").map((item) => item.trim()).filter(Boolean);
 }
 
+/**
+ * Export a stream's shape as a blueprint: configuration and durable consumers,
+ * no messages. Read-only, so it is available in agent mode too.
+ */
+async function exportStream(args: string[], output: Output): Promise<void> {
+  const input = readNamedArgs(args);
+  const name = stringValue(input.stream);
+  if (!name) fail("Usage: nats-trail stream export --stream <name> [--out blueprint.json]");
+  const contextId = stringValue(input.contextId) ?? (await detectContextId()) ?? "";
+
+  const streams = await bridgeGet<Stream[]>(`/streams?contextId=${encodeURIComponent(contextId)}`);
+  const stream = streams.find((item) => item.name === name);
+  if (!stream) fail(`stream not found: ${name}`);
+  const consumers = await bridgeGet<Consumer[]>(
+    `/streams/${encodeURIComponent(name)}/consumers?contextId=${encodeURIComponent(contextId)}`,
+  );
+
+  const blueprint = toBlueprint(stream, consumers, { contextId, at: Date.now() });
+  const target = stringValue(input.out);
+  if (target) {
+    writeFileSync(target, `${JSON.stringify(blueprint, null, 2)}\n`);
+    if (output === "text") console.log(`wrote ${target}`);
+    else printJson({ ok: true, out: target, consumers: blueprint.consumers.length });
+    return;
+  }
+  printJson(blueprint);
+}
+
+/** Recreate a stream and its durable consumers from a blueprint file. */
+async function importStream(args: string[], output: Output): Promise<void> {
+  requireHumanInvocation("stream import");
+  const input = readNamedArgs(args);
+  const file = stringValue(input.file);
+  if (!file) {
+    fail("Usage: nats-trail stream import --file blueprint.json [--stream <rename>] [--subjects 'a.>'] --yes");
+  }
+  if (!existsSync(file)) fail(`file not found: ${file}`);
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(readFileSync(file, "utf8"));
+  } catch (err) {
+    fail(`${file} is not valid JSON: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  const errors = validateBlueprint(parsed);
+  if (errors.length) fail(`${file} is not a usable blueprint:\n  ${errors.map((e: NormalizedError) => e.message).join("\n  ")}`);
+
+  const blueprint = parsed as StreamBlueprint;
+  // Importing over a live stream changes it, so name it explicitly.
+  const name = stringValue(input.stream) ?? blueprint.stream.name;
+  const subjects = listValue(input.subjects) ?? blueprint.stream.subjects;
+  requireConfirmation("stream import", name, input);
+
+  // Renaming does not rename subjects, and JetStream refuses two streams that
+  // claim the same ones. Say so here rather than letting the server's
+  // "subjects overlap" error look like a bug in the rename.
+  if (name !== blueprint.stream.name && subjects === blueprint.stream.subjects) {
+    fail(
+      `Importing as "${name}" would keep the subjects ${subjects.join(", ")}, which "${blueprint.stream.name}" already claims in this context.\n` +
+        `Pass --subjects to remap them, or import into a different context with --context-id.`,
+    );
+  }
+
+  const stream = await bridgeRequest<{ name: string }>(`/mutate/streams/${encodeURIComponent(name)}`, {
+    method: "PUT",
+    body: JSON.stringify({ ...blueprint.stream, name, subjects }),
+  });
+
+  // A remapped stream does not remap its consumers' filters, and a consumer
+  // filtering a subject the stream no longer carries silently receives nothing.
+  // JetStream accepts it, so the warning has to come from here.
+  const stranded = blueprint.consumers.filter(
+    (consumer) =>
+      (consumer.filterSubjects ?? []).length > 0 &&
+      !(consumer.filterSubjects ?? []).some((filter) => subjects.some((subject) => subjectMatches(subject, filter))),
+  );
+  if (stranded.length > 0) {
+    console.warn(
+      `warning: ${stranded.length} consumer(s) filter subjects this stream no longer carries and will receive nothing: ` +
+        stranded.map((c) => `${c.name} (${(c.filterSubjects ?? []).join(", ")})`).join("; "),
+    );
+  }
+
+  const created: string[] = [];
+  for (const consumer of blueprint.consumers) {
+    await bridgeRequest(
+      `/mutate/streams/${encodeURIComponent(name)}/consumers/${encodeURIComponent(consumer.name)}`,
+      { method: "PUT", body: JSON.stringify(consumer) },
+    );
+    created.push(consumer.name);
+  }
+
+  if (output === "json" || output === "ndjson") printJson({ ok: true, stream: stream.name, consumers: created });
+  else console.log(`imported ${stream.name} with ${created.length} consumer(s)${created.length ? `: ${created.join(", ")}` : ""}`);
+}
+
 async function upsertStream(args: string[], output: Output): Promise<void> {
   requireHumanInvocation("stream create");
   const input = readNamedArgs(args);
@@ -1092,6 +1214,8 @@ Commands:
 Write commands (human and scripts only, never --agent):
   publish                    Publish to a subject (--subject --payload)
   request                    Request/reply on a subject (--subject --payload)
+  stream export              Export a stream's config and consumers (--stream [--out])
+  stream import              Recreate a stream from a blueprint (--file) --yes
   stream create              Create or update a stream (--stream --subjects)
   consumer create            Create or update a consumer (--stream --consumer)
   obj put                    Store an object from text (--bucket --name --value)

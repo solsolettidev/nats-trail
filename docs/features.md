@@ -203,6 +203,7 @@ NATS Trail can now change state, on the human surfaces only.
 | Create/update consumer | Consumers *New consumer* | `nats-trail consumer create` | Durable by name |
 | Object put | — | `nats-trail obj put` | Text payloads only, by design |
 | Object delete | — | `nats-trail obj delete` | Confirmation |
+| Import a blueprint | — | `nats-trail stream import` | Confirmation; refuses a rename that would collide |
 
 ### How the agent stays locked out
 
@@ -255,3 +256,25 @@ refusing it.
 
 Durations are milliseconds everywhere in the product (`maxAge`, `ackWait`); the nanosecond
 conversion happens at the NATS boundary.
+
+### Stream blueprints
+
+`stream export` writes a stream's shape — configuration plus durable consumers, no messages — as a
+portable JSON document. `stream import` recreates it, in the same context under a new name or in
+another context entirely. This is what teams mean by "give staging the same streams as prod", and it
+belongs in version control.
+
+Export is read-only, so it works in `--agent` mode. Import is a mutation and does not.
+
+Two things the CLI refuses to let you get wrong:
+
+- **A rename keeps its subjects**, and JetStream will not let two streams claim the same ones. The
+  import stops with the reason and the two ways out (`--subjects` to remap, or `--context-id` to land
+  elsewhere) rather than letting the server's "subjects overlap" read like a bug in the rename.
+- **Remapping subjects does not remap consumer filters.** JetStream accepts a consumer filtering a
+  subject its stream no longer carries — it just never receives anything. The import warns and names
+  the consumers affected.
+
+> **Binary snapshots are deliberately out.** `nats.js` exposes no snapshot API, and streaming message
+> bytes through the bridge would turn a debugging tool into a file transfer service. Use
+> `nats stream backup` for that.

@@ -371,6 +371,22 @@ export interface ConsumerSpec {
   description?: string;
 }
 
+/**
+ * A stream's shape, portable between contexts.
+ *
+ * Configuration only — no messages. Binary snapshots are a different problem
+ * (see `docs/features.md`); this is what teams actually want when they say
+ * "give staging the same streams as prod".
+ */
+export interface StreamBlueprint {
+  /** Format marker, so an old file can be recognised rather than misread. */
+  version: 1;
+  stream: StreamSpec;
+  consumers: ConsumerSpec[];
+  /** Where and when it was taken, for provenance. Never used on import. */
+  exportedFrom?: { contextId: string; at: number };
+}
+
 /** A reusable, named search definition (used by saved filters and future CLI). */
 export interface Filter {
   id: string;
