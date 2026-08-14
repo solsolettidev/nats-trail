@@ -5,16 +5,18 @@ import { ConnectionStatus } from "./components/ConnectionStatus.js";
 import { CorePanel } from "./components/CorePanel.js";
 import { JetStreamPanel } from "./components/JetStreamPanel.js";
 import { KvPanel } from "./components/KvPanel.js";
+import { ObjectPanel } from "./components/ObjectPanel.js";
 import { DlqPanel } from "./components/DlqPanel.js";
 import { Loading, ErrorState } from "./components/states.js";
 import { Icon } from "./components/ui.js";
 
-type Tab = "core" | "jetstream" | "kv" | "dlq";
+type Tab = "core" | "jetstream" | "kv" | "obj" | "dlq";
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: "core", label: "NATS Core", icon: "broadcast" },
   { id: "jetstream", label: "JetStream", icon: "stack" },
   { id: "kv", label: "KV Store", icon: "key" },
+  { id: "obj", label: "Objects", icon: "archive" },
   { id: "dlq", label: "DLQ", icon: "skull" },
 ];
 
@@ -185,6 +187,7 @@ export function App() {
             )}
             {tab === "jetstream" && <JetStreamPanel connected={connected} />}
             {tab === "kv" && <KvPanel connected={connected} />}
+            {tab === "obj" && <ObjectPanel connected={connected} />}
             {tab === "dlq" && <DlqPanel connected={connected} />}
           </div>
         </main>

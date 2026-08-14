@@ -23,6 +23,8 @@ import {
   type StreamQueryPage,
   type KvBucket,
   type KvEntry,
+  type ObjectBucket,
+  type ObjectEntry,
 } from "@nats-trail/core";
 import { mcpTools, validateToolInput } from "./tools.js";
 
@@ -41,6 +43,8 @@ export interface McpRuntimeData {
   listKvBuckets?: () => Promise<KvBucket[]>;
   listKvEntries?: (bucket: string, limit: number) => Promise<KvEntry[]>;
   kvHistory?: (bucket: string, key: string, limit: number) => Promise<KvEntry[]>;
+  listObjectBuckets?: () => Promise<ObjectBucket[]>;
+  listObjects?: (bucket: string, limit: number) => Promise<ObjectEntry[]>;
 }
 
 /** Page size used when a tool scans a stream window incrementally. */
@@ -334,6 +338,30 @@ async function executeMcpToolInner(name: string, input: Record<string, unknown>,
     if (!key) return inputError(name, limit, "key is required");
     try {
       return createQueryEnvelope({ query: { tool: name, contextId: input.contextId, bucket, key }, results: await data.kvHistory(bucket, key, limit), limit });
+    } catch (err) {
+      return toolError(name, limit, err);
+    }
+  }
+
+  if (name === "natstrail.list_object_buckets") {
+    const error = validateConnectedContext(name, input, data);
+    if (error) return error;
+    if (!data.listObjectBuckets) return notImplemented(name, limit);
+    try {
+      return createQueryEnvelope({ query: { tool: name, contextId: input.contextId }, results: await data.listObjectBuckets(), limit });
+    } catch (err) {
+      return toolError(name, limit, err);
+    }
+  }
+
+  if (name === "natstrail.list_objects") {
+    const error = validateConnectedContext(name, input, data);
+    if (error) return error;
+    if (!data.listObjects) return notImplemented(name, limit);
+    const bucket = stringInput(input.bucket);
+    if (!bucket) return inputError(name, limit, "bucket is required");
+    try {
+      return createQueryEnvelope({ query: { tool: name, contextId: input.contextId, bucket }, results: await data.listObjects(bucket, limit), limit });
     } catch (err) {
       return toolError(name, limit, err);
     }

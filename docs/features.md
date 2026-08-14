@@ -112,3 +112,11 @@ CLI only — the MCP runtime stays read-only by construction.
   value that disappeared explainable.
 - Exposed on all three surfaces: `/api/kv`, `nats-trail kv list|keys|history`, and the read-only
   tools `natstrail.list_kv_buckets`, `natstrail.list_kv_keys` and `natstrail.get_kv_history`.
+
+## Object Store
+
+- Browse Object Store buckets: object count, total size, TTL, storage and replicas.
+- List object metadata — name, description, size, chunk count, checksum digest and age —
+  without ever streaming a payload through the bridge.
+- Exposed on all three surfaces: `/api/obj`, `nats-trail obj list|objects`, and the read-only
+  tools `natstrail.list_object_buckets` and `natstrail.list_objects`.

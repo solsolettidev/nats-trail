@@ -120,6 +120,20 @@ for (const worker of ["refresh-worker", "bronze-loader"]) {
   await kvLocks.put(worker, new TextEncoder().encode(JSON.stringify({ holder: `pod-${worker}-7f9`, acquired_at: new Date().toISOString() })));
 }
 
+// Object Store: a few artifacts of realistic sizes.
+const os = await js.views.os("etl-artifacts", { description: "Parquet exports and run manifests" });
+const blob = (n) => new Uint8Array(n).fill(65);
+for (const [name, size, description] of [
+  ["exports/salesforce-2026-08-13.parquet", 96_000, "Daily export"],
+  ["exports/hubspot-2026-08-13.parquet", 48_000, "Daily export"],
+  ["manifests/run-8f21c.json", 2_400, "Run manifest"],
+  ["logs/bronze-loader.log", 12_800, "Worker log"],
+]) {
+  const data = blob(size);
+  const rs = new ReadableStream({ start(c) { c.enqueue(data); c.close(); } });
+  await os.put({ name, description }, rs);
+}
+
 for (const c of CONSUMERS) {
   await jsm.consumers
     .add(c.stream, { durable_name: c.durable, ack_policy: AckPolicy.Explicit, filter_subject: c.filter })
@@ -138,6 +152,8 @@ for (const s of STREAMS) {
   const info = await jsm.streams.info(s.name);
   console.log(`  ${s.name.padEnd(15)} ${String(info.state.messages).padStart(4)} messages`);
 }
+const osStatus = await (await js.views.os("etl-artifacts")).status();
+console.log(`  OBJ etl-artifacts  ${String(osStatus.size).padStart(7)} bytes`);
 for (const bucket of ["app-config", "worker-locks"]) {
   const status = await (await js.views.kv(bucket, { bindOnly: true })).status();
   console.log(`  KV ${bucket.padEnd(12)} ${String(status.values).padStart(4)} revisions`);

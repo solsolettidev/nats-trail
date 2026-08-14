@@ -17,6 +17,8 @@ import {
   type Context,
   type KvBucket,
   type KvEntry,
+  type ObjectBucket,
+  type ObjectEntry,
   type ConnectionState,
   type Stream,
   type StreamQuery,
@@ -233,6 +235,53 @@ class ManagedConnection {
       throw new Error("Not connected to NATS");
     }
     return this.nc.jetstream().views.kv(bucket, { bindOnly: true });
+  }
+
+  /**
+   * List Object Store buckets. Like KV, these are streams (`OBJ_<bucket>`), so
+   * the list is derived from the stream list in a single round trip.
+   */
+  async listObjectBuckets(): Promise<ObjectBucket[]> {
+    const jsm = await this.requireJsm();
+    const out: ObjectBucket[] = [];
+    for await (const si of jsm.streams.list()) {
+      const name = si.config.name;
+      if (!name.startsWith("OBJ_")) continue;
+      // Every object writes exactly one metadata message under `$O.<bucket>.M.>`,
+      // so counting those subjects counts objects without reading any payload.
+      // `streams.list()` never carries subject detail, hence the extra info call.
+      const detail = await jsm.streams.info(name, { subjects_filter: "$O.*.M.>" }).catch(() => null);
+      out.push({
+        name: name.slice(4),
+        description: si.config.description ?? "",
+        objects: detail?.state.subjects ? Object.keys(detail.state.subjects).length : 0,
+        bytes: si.state.bytes,
+        ttl: Number(si.config.max_age),
+        storage: String(si.config.storage),
+        replicas: si.config.num_replicas,
+        stream: name,
+      });
+    }
+    return out;
+  }
+
+  /** List object metadata in a bucket. Object payloads are never read here. */
+  async listObjects(bucket: string, limit: number): Promise<ObjectEntry[]> {
+    if (!this.nc || this.state.status !== "connected") {
+      throw new Error("Not connected to NATS");
+    }
+    const os = await this.nc.jetstream().views.os(bucket);
+    const infos = await os.list();
+    return infos.slice(0, limit).map((info) => ({
+      bucket,
+      name: info.name,
+      description: info.description ?? "",
+      size: info.size,
+      chunks: info.chunks,
+      digest: info.digest,
+      deleted: info.deleted,
+      timestamp: Date.parse(info.mtime) || 0,
+    }));
   }
 
   async getStreamMessage(stream: string, seq: number): Promise<Message | null> {
@@ -494,6 +543,14 @@ class ConnectionPool {
 
   listKvBuckets(contextId: string): Promise<KvBucket[]> {
     return this.require(contextId).listKvBuckets();
+  }
+
+  listObjectBuckets(contextId: string): Promise<ObjectBucket[]> {
+    return this.require(contextId).listObjectBuckets();
+  }
+
+  listObjects(contextId: string, bucket: string, limit: number): Promise<ObjectEntry[]> {
+    return this.require(contextId).listObjects(bucket, limit);
   }
 
   listKvEntries(contextId: string, bucket: string, limit: number): Promise<KvEntry[]> {

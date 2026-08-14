@@ -63,6 +63,8 @@ export const mcpTools: McpToolDefinition[] = [
   tool("natstrail.list_kv_buckets", "List JetStream Key/Value buckets.", { contextId: { type: "string" }, limit: limitProperty }),
   tool("natstrail.list_kv_keys", "List live keys and current values in a KV bucket.", { contextId: { type: "string" }, bucket: { type: "string" }, limit: limitProperty }, ["contextId", "bucket", "limit"], SCAN_TIMEOUT_MS),
   tool("natstrail.get_kv_history", "Get the revision history of one KV key, including deletes.", { contextId: { type: "string" }, bucket: { type: "string" }, key: { type: "string" }, limit: limitProperty }, ["contextId", "bucket", "key", "limit"], SCAN_TIMEOUT_MS),
+  tool("natstrail.list_object_buckets", "List JetStream Object Store buckets.", { contextId: { type: "string" }, limit: limitProperty }),
+  tool("natstrail.list_objects", "List object metadata in an Object Store bucket.", { contextId: { type: "string" }, bucket: { type: "string" }, limit: limitProperty }, ["contextId", "bucket", "limit"], SCAN_TIMEOUT_MS),
 ];
 
 export function validateToolInput(name: string, input: Record<string, unknown>): ToolInputError[] {

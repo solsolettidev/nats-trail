@@ -232,6 +232,23 @@ router.get("/kv/:bucket/keys/:key/history", async (req, res) => {
   }
 });
 
+router.get("/obj", async (req, res) => {
+  try {
+    res.json(await connectionPool.listObjectBuckets(requestContextId(req)));
+  } catch (err) {
+    res.status(409).json({ error: normalizeError(err) });
+  }
+});
+
+router.get("/obj/:bucket/objects", async (req, res) => {
+  try {
+    const limit = Number(req.query.limit) || 200;
+    res.json(await connectionPool.listObjects(requestContextId(req), req.params.bucket, limit));
+  } catch (err) {
+    res.status(409).json({ error: normalizeError(err) });
+  }
+});
+
 function selectedContextId(): string | null {
   return loadPreferences().selectedContextId;
 }
@@ -267,6 +284,8 @@ function executeIntegrationTool(name: string, input: Record<string, unknown>) {
     listKvBuckets: () => connectionPool.listKvBuckets(target),
     listKvEntries: (bucket, limit) => connectionPool.listKvEntries(target, bucket, limit),
     kvHistory: (bucket, key, limit) => connectionPool.kvHistory(target, bucket, key, limit),
+    listObjectBuckets: () => connectionPool.listObjectBuckets(target),
+    listObjects: (bucket, limit) => connectionPool.listObjects(target, bucket, limit),
   });
 }
 

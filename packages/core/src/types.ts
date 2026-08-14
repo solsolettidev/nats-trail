@@ -120,6 +120,38 @@ export interface KvEntry {
   operation: "PUT" | "DEL" | "PURGE";
 }
 
+/** A JetStream Object Store bucket. */
+export interface ObjectBucket {
+  name: string;
+  description: string;
+  /** Stored objects, excluding deleted ones. */
+  objects: number;
+  bytes: number;
+  /** Bucket-wide TTL in nanoseconds, 0 when unset. */
+  ttl: number;
+  storage: string;
+  replicas: number;
+  /** The stream backing this bucket (`OBJ_<name>`). */
+  stream: string;
+}
+
+/**
+ * Metadata for one stored object. The payload itself is never streamed here.
+ * Mirrors what the Object Store list API actually returns — notably there is no
+ * per-object revision, unlike KV.
+ */
+export interface ObjectEntry {
+  bucket: string;
+  name: string;
+  description: string;
+  size: number;
+  chunks: number;
+  /** Algorithm-prefixed checksum, e.g. `SHA-256=…`. */
+  digest: string;
+  deleted: boolean;
+  timestamp: number;
+}
+
 export interface Consumer {
   name: string;
   stream: string;

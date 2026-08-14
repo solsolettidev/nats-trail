@@ -4,12 +4,14 @@ import type {
   Filter,
   KvBucket,
   KvEntry,
+  ObjectBucket,
+  ObjectEntry,
   Stream,
   Consumer,
   Message,
 } from "@nats-trail/core";
 
-export type { Context, ConnectionState, Filter, KvBucket, KvEntry, Stream, Consumer, Message };
+export type { Context, ConnectionState, Filter, KvBucket, KvEntry, ObjectBucket, ObjectEntry, Stream, Consumer, Message };
 
 export interface Preferences {
   selectedContextId: string | null;
@@ -65,6 +67,10 @@ export const api = {
     req<KvEntry[]>(`/kv/${encodeURIComponent(bucket)}/keys`),
   kvHistory: (bucket: string, key: string) =>
     req<KvEntry[]>(`/kv/${encodeURIComponent(bucket)}/keys/${encodeURIComponent(key)}/history`),
+
+  listObjectBuckets: () => req<ObjectBucket[]>("/obj"),
+  listObjects: (bucket: string) =>
+    req<ObjectEntry[]>(`/obj/${encodeURIComponent(bucket)}/objects`),
 };
 
 /** Pretty-print a message payload (JSON when possible). Mirrors core.formatPayload. */
