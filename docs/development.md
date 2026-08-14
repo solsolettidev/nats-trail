@@ -104,3 +104,19 @@ The failing request ids it prints are the ones worth tracing:
 ```bash
 nats-trail trace --request-id req-0001b --context-id local --limit 20
 ```
+
+## Tests
+
+```bash
+npm test
+```
+
+`node:test` against the compiled `dist/`, so the tests exercise exactly what ships — no test
+framework dependency. They cover the parts an agent depends on being correct: envelope limits and
+truncation, UTF-8 payload cutting, subject wildcard semantics, filter evaluation, credential
+sanitization, and the MCP contract.
+
+Two of those are guardrails rather than unit tests: one asserts every tool is `readOnly` with a
+required `limit`, and one reads `McpRuntimeData` to assert no write capability was ever added to the
+interface the agent runtime receives. If someone adds a write path to the agent surface, the suite
+fails.

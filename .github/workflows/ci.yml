@@ -20,6 +20,7 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm run typecheck
+      - run: npm test
       - name: Smoke test the built CLI and server
         run: |
           node packages/cli/dist/index.js help

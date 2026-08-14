@@ -22,7 +22,8 @@
     "start": "npm run start --workspace @nats-trail/server",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "npm run typecheck",
-    "prepare": "npm run build"
+    "prepare": "npm run build",
+    "test": "node --test \"test/*.test.mjs\""
   },
   "devDependencies": {
     "concurrently": "^9.1.0"
