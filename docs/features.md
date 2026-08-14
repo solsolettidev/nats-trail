@@ -199,6 +199,8 @@ NATS Trail can now change state, on the human surfaces only.
 | KV set | KV panel (edit) | `nats-trail kv put` | Optimistic concurrency via `--expected-revision` |
 | KV delete | KV row | `nats-trail kv delete` | Confirmation; leaves a `DEL` tombstone |
 | KV purge | — | `nats-trail kv purge` | Confirmation; discards the key history |
+| Create/update stream | JetStream *New stream* / row edit | `nats-trail stream create` | Illegal changes surface the server error |
+| Create/update consumer | Consumers *New consumer* | `nats-trail consumer create` | Durable by name |
 
 ### How the agent stays locked out
 
@@ -239,3 +241,15 @@ fails loudly.
 
 `delete` leaves a `DEL` tombstone the history can show — a value that disappeared stays
 explainable. `purge` discards the history, which is why it is CLI-only and needs `--yes`.
+
+### Stream and consumer administration
+
+Create and update are the same call: the name decides. Fields left unset are omitted from the
+request, so an update never resets a setting nobody touched.
+
+JetStream refuses some changes on a live stream — storage type and retention among them — and that
+error is shown as-is rather than smoothed over. Silently ignoring a requested change is worse than
+refusing it.
+
+Durations are milliseconds everywhere in the product (`maxAge`, `ackWait`); the nanosecond
+conversion happens at the NATS boundary.

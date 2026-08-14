@@ -6,6 +6,7 @@ import { MessageFilters, applyFilters, emptyFilters, type FilterState } from "./
 import { MessageList, SplitWorkspace } from "./MessageList.js";
 import { SavedFilters } from "./SavedFilters.js";
 import { ConfirmAction } from "./ConfirmAction.js";
+import { StreamForm, ConsumerForm } from "./StreamForm.js";
 import { Loading, Empty, ErrorState } from "./states.js";
 import { Badge, Icon, fmtBytes, fmtInt } from "./ui.js";
 
@@ -38,6 +39,8 @@ export function JetStreamPanel({ connected }: { connected: boolean }) {
 
   const [filters, setFilters] = useState<FilterState>(emptyFilters);
   const [pending, setPending] = useState<{ label: string; detail: string; run: () => Promise<unknown> } | null>(null);
+  const [streamForm, setStreamForm] = useState<{ existing?: string } | null>(null);
+  const [consumerForm, setConsumerForm] = useState<string | null>(null);
   const filtered = useMemo(() => applyFilters(live.messages, filters), [live.messages, filters]);
   const [recentStreams, setRecentStreams] = useState<string[]>([]);
 
@@ -129,6 +132,9 @@ export function JetStreamPanel({ connected }: { connected: boolean }) {
         <h3>Streams</h3>
         {streams && <span className="count">{streams.length}</span>}
         <span className="spacer" />
+        <button className="btn btn--sm btn--ghost" onClick={() => setStreamForm({})}>
+          <Icon name="plus" /> New stream
+        </button>
         <button className="btn btn--sm" onClick={refresh}>
           <Icon name="arrows-clockwise" /> Refresh
         </button>
@@ -213,6 +219,16 @@ export function JetStreamPanel({ connected }: { connected: boolean }) {
                     >
                       <Icon name="eraser" /> Purge
                     </button>
+                    <button
+                      className="btn btn--sm btn--icon"
+                      title="Edit stream configuration"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setStreamForm({ existing: s.name });
+                      }}
+                    >
+                      <Icon name="pencil-simple" />
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -227,6 +243,10 @@ export function JetStreamPanel({ connected }: { connected: boolean }) {
             <Icon name="users-three" weight="duotone" size={17} />
             <h3>Consumers</h3>
             <span className="count">· {selected}</span>
+            <span className="spacer" />
+            <button className="btn btn--sm btn--ghost" onClick={() => setConsumerForm(selected)}>
+              <Icon name="plus" /> New consumer
+            </button>
           </div>
           {consumersError && <ErrorState message={consumersError} />}
           {!consumers && !consumersError && <Loading />}
@@ -372,6 +392,28 @@ export function JetStreamPanel({ connected }: { connected: boolean }) {
           </div>
         </>
       )}
+      {streamForm && (
+        <StreamForm
+          existing={streamForm.existing}
+          onCancel={() => setStreamForm(null)}
+          onDone={() => {
+            setStreamForm(null);
+            refresh();
+          }}
+        />
+      )}
+
+      {consumerForm && (
+        <ConsumerForm
+          stream={consumerForm}
+          onCancel={() => setConsumerForm(null)}
+          onDone={() => {
+            setConsumerForm(null);
+            select(consumerForm);
+          }}
+        />
+      )}
+
       {pending && (
         <ConfirmAction
           label={pending.label}

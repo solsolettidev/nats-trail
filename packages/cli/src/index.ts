@@ -44,7 +44,10 @@ const DEFAULT_PREFS: Preferences = {
   messageViewerMode: "tree",
 };
 
-const NUMERIC_FLAGS = new Set(["limit", "seq", "timeoutMs", "fromTs", "toTs", "maxScan", "port", "keep", "expectedRevision"]);
+const NUMERIC_FLAGS = new Set([
+  "limit", "seq", "timeoutMs", "fromTs", "toTs", "maxScan", "port", "keep", "expectedRevision",
+  "replicas", "maxAge", "maxMessages", "maxBytes", "startSeq", "ackWait", "maxDeliver",
+]);
 
 /** Flags that are switches rather than key/value pairs. */
 const BOOLEAN_FLAGS = new Set(["yes", "noAutoConnect"]);
@@ -260,6 +263,16 @@ async function runCommand(args: string[]): Promise<void> {
 
   if (command[0] === "request") {
     await requestReply(command.slice(1));
+    return;
+  }
+
+  if (command[0] === "stream" && (command[1] === "create" || command[1] === "update")) {
+    await upsertStream(command.slice(2), output);
+    return;
+  }
+
+  if (command[0] === "consumer" && (command[1] === "create" || command[1] === "update")) {
+    await upsertConsumer(command.slice(2), output);
     return;
   }
 
@@ -847,6 +860,69 @@ async function requestReply(args: string[]): Promise<void> {
   printJson(reply);
 }
 
+/** Split a repeatable comma-separated flag into trimmed values. */
+function listValue(value: unknown): string[] | undefined {
+  const raw = stringValue(value);
+  if (!raw) return undefined;
+  return raw.split(",").map((item) => item.trim()).filter(Boolean);
+}
+
+async function upsertStream(args: string[], output: Output): Promise<void> {
+  requireHumanInvocation("stream create");
+  const input = readNamedArgs(args);
+  const stream = stringValue(input.stream);
+  const subjects = listValue(input.subjects);
+  if (!stream || !subjects?.length) {
+    fail("Usage: nats-trail stream create --stream <name> --subjects 'a.>,b.*' [--retention limits|interest|workqueue] [--storage file|memory] [--replicas n] [--max-age ms] [--max-messages n] [--max-bytes n]");
+  }
+  const result = await bridgeRequest<{ name: string; subjects: string[] }>(
+    `/mutate/streams/${encodeURIComponent(stream)}`,
+    {
+      method: "PUT",
+      body: JSON.stringify({
+        subjects,
+        retention: stringValue(input.retention),
+        storage: stringValue(input.storage),
+        replicas: numberValue(input.replicas),
+        maxAge: numberValue(input.maxAge),
+        maxMessages: numberValue(input.maxMessages),
+        maxBytes: numberValue(input.maxBytes),
+        discard: stringValue(input.discard),
+        description: stringValue(input.description),
+      }),
+    },
+  );
+  if (output === "json" || output === "ndjson") printJson(result);
+  else console.log(`${result.name} now carries ${result.subjects.join(", ")}`);
+}
+
+async function upsertConsumer(args: string[], output: Output): Promise<void> {
+  requireHumanInvocation("consumer create");
+  const input = readNamedArgs(args);
+  const stream = stringValue(input.stream);
+  const consumer = stringValue(input.consumer);
+  if (!stream || !consumer) {
+    fail("Usage: nats-trail consumer create --stream <name> --consumer <name> [--filter-subjects 'a.>'] [--ack-policy explicit|all|none] [--deliver-policy all|last|new] [--ack-wait ms] [--max-deliver n]");
+  }
+  const result = await bridgeRequest<{ name: string; pending: number }>(
+    `/mutate/streams/${encodeURIComponent(stream)}/consumers/${encodeURIComponent(consumer)}`,
+    {
+      method: "PUT",
+      body: JSON.stringify({
+        filterSubjects: listValue(input.filterSubjects),
+        ackPolicy: stringValue(input.ackPolicy),
+        deliverPolicy: stringValue(input.deliverPolicy),
+        startSeq: numberValue(input.startSeq),
+        ackWait: numberValue(input.ackWait),
+        maxDeliver: numberValue(input.maxDeliver),
+        description: stringValue(input.description),
+      }),
+    },
+  );
+  if (output === "json" || output === "ndjson") printJson(result);
+  else console.log(`${stream}/${result.name} ready, ${result.pending} pending`);
+}
+
 async function kvPut(args: string[], output: Output): Promise<void> {
   requireHumanInvocation("kv put");
   const input = readNamedArgs(args);
@@ -975,6 +1051,8 @@ Commands:
 Write commands (human and scripts only, never --agent):
   publish                    Publish to a subject (--subject --payload)
   request                    Request/reply on a subject (--subject --payload)
+  stream create              Create or update a stream (--stream --subjects)
+  consumer create            Create or update a consumer (--stream --consumer)
   kv put                     Set a key (--bucket --key --value [--expected-revision])
   kv delete                  Delete a key, keeping its history (--bucket --key) --yes
   kv purge                   Purge a key and its history (--bucket --key) --yes

@@ -4,8 +4,10 @@ import {
   normalizeError,
   sanitizeContext,
   validateContext,
+  type ConsumerSpec,
   type Context,
   type Filter,
+  type StreamSpec,
 } from "@nats-trail/core";
 import { executeMcpTool, mcpTools } from "@nats-trail/mcp";
 import { connectionPool } from "./connection.js";
@@ -372,6 +374,38 @@ mutations.post("/request", async (req, res) => {
     res.json(reply);
   } catch (err) {
     auditMutation(req, res, "request", subject.trim(), { timeoutMs: timeout }, 1);
+    res.status(409).json({ error: normalizeError(err) });
+  }
+});
+
+mutations.put("/streams/:name", async (req, res) => {
+  const body = req.body as Partial<StreamSpec>;
+  const subjects = (body.subjects ?? []).map((s) => s.trim()).filter(Boolean);
+  if (subjects.length === 0) {
+    return res.status(400).json({ error: normalizeError("at least one subject is required") });
+  }
+  try {
+    const stream = await connectionPool.upsertStream(requestContextId(req), { ...body, name: req.params.name, subjects });
+    auditMutation(req, res, "stream.upsert", req.params.name, { subjects, retention: body.retention, storage: body.storage, replicas: body.replicas });
+    res.json(stream);
+  } catch (err) {
+    auditMutation(req, res, "stream.upsert", req.params.name, { subjects }, 1);
+    res.status(409).json({ error: normalizeError(err) });
+  }
+});
+
+mutations.put("/streams/:name/consumers/:consumer", async (req, res) => {
+  const body = req.body as Partial<ConsumerSpec>;
+  const target = `${req.params.name}/${req.params.consumer}`;
+  try {
+    const consumer = await connectionPool.upsertConsumer(requestContextId(req), req.params.name, {
+      ...body,
+      name: req.params.consumer,
+    });
+    auditMutation(req, res, "consumer.upsert", target, { filterSubjects: body.filterSubjects, ackPolicy: body.ackPolicy, deliverPolicy: body.deliverPolicy });
+    res.json(consumer);
+  } catch (err) {
+    auditMutation(req, res, "consumer.upsert", target, {}, 1);
     res.status(409).json({ error: normalizeError(err) });
   }
 });

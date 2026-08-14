@@ -97,3 +97,26 @@ test("deleting a stream requires naming it back", () => {
   const routeBody = ROUTES.slice(routeStart, ROUTES.indexOf("\n});", routeStart));
   assert.equal(routeBody.includes("req.body?.confirm !== req.params.name"), true, "the route must verify it too");
 });
+
+test("stream and consumer upsert routes exist, are gated, and are audited", () => {
+  const mutationBlock = ROUTES.slice(ROUTES.indexOf("const mutations = Router()"), ROUTES.indexOf('router.use("/mutate"'));
+  assert.equal(mutationBlock.includes('mutations.put("/streams/:name"'), true, "stream upsert must live under /mutate");
+  assert.equal(
+    mutationBlock.includes('mutations.put("/streams/:name/consumers/:consumer"'),
+    true,
+    "consumer upsert must live under /mutate",
+  );
+  assert.equal(mutationBlock.includes('mutations.put("/kv/:bucket/keys/:key"'), true, "kv put must live under /mutate");
+});
+
+test("every CLI admin and KV write command refuses agent mode", () => {
+  for (const fn of ["upsertStream", "upsertConsumer", "kvPut", "kvRemove"]) {
+    const start = CLI.indexOf(`async function ${fn}(`);
+    assert.equal(start > -1, true, `${fn} should exist in the CLI`);
+    const body = CLI.slice(start, CLI.indexOf("\n}", start));
+    assert.equal(body.includes("requireHumanInvocation"), true, `${fn} must refuse --agent`);
+  }
+  // Removing a key is destructive; setting one is not.
+  const remove = CLI.slice(CLI.indexOf("async function kvRemove("), CLI.indexOf("\n}", CLI.indexOf("async function kvRemove(")));
+  assert.equal(remove.includes("requireConfirmation"), true, "kv delete/purge must require --yes");
+});

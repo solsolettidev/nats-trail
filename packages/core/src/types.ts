@@ -102,6 +102,7 @@ export interface Stream {
   retention: string;
   storage: string;
   replicas: number;
+  /** Retention age in milliseconds; 0 means unlimited. */
   maxAge: number;
   maxMessages: number;
   maxBytes: number;
@@ -312,6 +313,43 @@ export interface Consumer {
   filterSubjects: string[];
   state: "ok" | "warning";
   errors: string[];
+}
+
+/**
+ * Stream settings a caller may create or change.
+ *
+ * Deliberately a small subset of the JetStream config: the fields teams
+ * actually set by hand. Anything absent keeps the server default on create and
+ * its current value on update.
+ */
+export interface StreamSpec {
+  name: string;
+  subjects: string[];
+  retention?: "limits" | "interest" | "workqueue";
+  storage?: "file" | "memory";
+  replicas?: number;
+  /** Max age in milliseconds; 0 or absent means unlimited. */
+  maxAge?: number;
+  maxMessages?: number;
+  maxBytes?: number;
+  discard?: "old" | "new";
+  description?: string;
+}
+
+/** Consumer settings a caller may create. */
+export interface ConsumerSpec {
+  name: string;
+  /** Only messages on these subjects. Empty means the whole stream. */
+  filterSubjects?: string[];
+  ackPolicy?: "none" | "all" | "explicit";
+  /** Where a new consumer starts reading. */
+  deliverPolicy?: "all" | "last" | "new" | "by_start_sequence" | "by_start_time";
+  startSeq?: number;
+  startTime?: number;
+  /** Ack wait in milliseconds. */
+  ackWait?: number;
+  maxDeliver?: number;
+  description?: string;
 }
 
 /** A reusable, named search definition (used by saved filters and future CLI). */

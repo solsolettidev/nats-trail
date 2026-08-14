@@ -16,8 +16,10 @@ import {
   parseMessage,
   truncateText,
   type Context,
+  type ConsumerSpec,
   type KvBucket,
   type KvEntry,
+  type StreamSpec,
   type ObjectBucket,
   type ObjectEntry,
   type ConnectionState,
@@ -124,22 +126,7 @@ class ManagedConnection {
     const jsm = await this.requireJsm();
     const out: Stream[] = [];
     for await (const si of jsm.streams.list()) {
-      out.push({
-        name: si.config.name,
-        subjects: si.config.subjects ?? [],
-        messages: si.state.messages,
-        bytes: si.state.bytes,
-        lastTs: si.state.last_ts ? Date.parse(si.state.last_ts) || null : null,
-        firstSeq: si.state.first_seq,
-        lastSeq: si.state.last_seq,
-        retention: String(si.config.retention),
-        storage: String(si.config.storage),
-        replicas: si.config.num_replicas,
-        maxAge: Number(si.config.max_age),
-        maxMessages: si.config.max_msgs,
-        maxBytes: si.config.max_bytes,
-        discard: String(si.config.discard),
-      });
+      out.push(toStream(si));
     }
     return out;
   }
@@ -329,6 +316,34 @@ class ManagedConnection {
       timestamp: Date.now(),
       size: reply.data.length,
     });
+  }
+
+  /**
+   * Create a stream, or update it when it already exists.
+   *
+   * JetStream rejects some changes on a live stream (storage and retention among
+   * them); the error is surfaced rather than smoothed over, because silently
+   * ignoring a requested change is worse than refusing it.
+   */
+  async upsertStream(spec: StreamSpec): Promise<Stream> {
+    const jsm = await this.requireJsm();
+    const config = toStreamConfig(spec);
+    const exists = await jsm.streams.info(spec.name).then(() => true).catch(() => false);
+    const info = exists ? await jsm.streams.update(spec.name, config) : await jsm.streams.add(config);
+    return toStream(info);
+  }
+
+  /** Create a consumer, or update it when it already exists. */
+  async upsertConsumer(stream: string, spec: ConsumerSpec): Promise<Consumer> {
+    const jsm = await this.requireJsm();
+    const config = toConsumerConfig(spec);
+    const exists = await jsm.consumers.info(stream, spec.name).then(() => true).catch(() => false);
+    if (exists) await jsm.consumers.update(stream, spec.name, config);
+    else await jsm.consumers.add(stream, config);
+    const consumers = await this.listConsumers(stream);
+    const found = consumers.find((c) => c.name === spec.name);
+    if (!found) throw new Error(`consumer was not created: ${spec.name}`);
+    return found;
   }
 
   /**
@@ -548,6 +563,99 @@ async function getDirectMessage(jsm: JetStreamManager, stream: string, seq: numb
   return streams.getMessage(stream, { seq });
 }
 
+/** NATS durations are nanoseconds; the product speaks milliseconds. */
+const NANOS_PER_MS = 1e6;
+
+interface StreamInfoLike {
+  config: {
+    name: string;
+    subjects?: string[];
+    retention: unknown;
+    storage: unknown;
+    num_replicas: number;
+    max_age: number;
+    max_msgs: number;
+    max_bytes: number;
+    discard: unknown;
+  };
+  state: {
+    messages: number;
+    bytes: number;
+    last_ts?: string;
+    first_seq: number;
+    last_seq: number;
+  };
+}
+
+/**
+ * An empty stream reports last_ts as the zero time (`0001-01-01T00:00:00Z`),
+ * which parses to a valid but absurd negative epoch. Treat anything before the
+ * unix epoch as "no messages yet" rather than rendering a year-1 date.
+ */
+function parseStreamTimestamp(value: string | undefined): number | null {
+  if (!value) return null;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+/** The single place a JetStream StreamInfo becomes a core Stream. */
+function toStream(si: StreamInfoLike): Stream {
+  return {
+    name: si.config.name,
+    subjects: si.config.subjects ?? [],
+    messages: si.state.messages,
+    bytes: si.state.bytes,
+    lastTs: parseStreamTimestamp(si.state.last_ts),
+    firstSeq: si.state.first_seq,
+    lastSeq: si.state.last_seq,
+    retention: String(si.config.retention),
+    storage: String(si.config.storage),
+    replicas: si.config.num_replicas,
+    maxAge: Math.round(Number(si.config.max_age) / NANOS_PER_MS),
+    maxMessages: si.config.max_msgs,
+    maxBytes: si.config.max_bytes,
+    discard: String(si.config.discard),
+  };
+}
+
+/**
+ * Translate a StreamSpec into a JetStream config, omitting anything the caller
+ * left unset so create keeps server defaults and update keeps current values.
+ */
+function toStreamConfig(spec: StreamSpec): Record<string, unknown> {
+  const config: Record<string, unknown> = {
+    name: spec.name,
+    subjects: spec.subjects,
+  };
+  if (spec.retention) config.retention = spec.retention;
+  if (spec.storage) config.storage = spec.storage;
+  if (spec.replicas != null) config.num_replicas = spec.replicas;
+  if (spec.maxAge != null) config.max_age = spec.maxAge * NANOS_PER_MS;
+  if (spec.maxMessages != null) config.max_msgs = spec.maxMessages;
+  if (spec.maxBytes != null) config.max_bytes = spec.maxBytes;
+  if (spec.discard) config.discard = spec.discard;
+  if (spec.description) config.description = spec.description;
+  return config;
+}
+
+/** Same for a consumer. Durable by name, since ephemeral ones cannot be managed. */
+function toConsumerConfig(spec: ConsumerSpec): Record<string, unknown> {
+  const config: Record<string, unknown> = {
+    durable_name: spec.name,
+    ack_policy: spec.ackPolicy ?? "explicit",
+  };
+  const subjects = (spec.filterSubjects ?? []).filter(Boolean);
+  if (subjects.length === 1) config.filter_subject = subjects[0];
+  else if (subjects.length > 1) config.filter_subjects = subjects;
+  if (spec.deliverPolicy) config.deliver_policy = spec.deliverPolicy;
+  if (spec.startSeq != null) config.opt_start_seq = spec.startSeq;
+  if (spec.startTime != null) config.opt_start_time = new Date(spec.startTime).toISOString();
+  if (spec.ackWait != null) config.ack_wait = spec.ackWait * NANOS_PER_MS;
+  if (spec.maxDeliver != null) config.max_deliver = spec.maxDeliver;
+  if (spec.description) config.description = spec.description;
+  return config;
+}
+
 function directToMessage(msg: DirectMessageLike): Message {
   return parseMessage({
     subject: msg.subject,
@@ -664,6 +772,14 @@ class ConnectionPool {
 
   request(contextId: string, subject: string, payload: string, timeoutMs: number): Promise<Message> {
     return this.require(contextId).request(subject, payload, timeoutMs);
+  }
+
+  upsertStream(contextId: string, spec: StreamSpec): Promise<Stream> {
+    return this.require(contextId).upsertStream(spec);
+  }
+
+  upsertConsumer(contextId: string, stream: string, spec: ConsumerSpec): Promise<Consumer> {
+    return this.require(contextId).upsertConsumer(stream, spec);
   }
 
   kvPut(contextId: string, bucket: string, key: string, value: string, expectedRevision?: number): Promise<number> {

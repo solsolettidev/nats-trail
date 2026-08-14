@@ -123,6 +123,15 @@ export const api = {
       body: JSON.stringify({ confirm: stream }),
     }),
 
+  /** Fields omitted keep the server default on create and the current value on update. */
+  upsertStream: (name: string, spec: Record<string, unknown>) =>
+    req<Stream>(`/mutate/streams/${encodeURIComponent(name)}`, { method: "PUT", body: JSON.stringify(spec) }),
+  upsertConsumer: (stream: string, consumer: string, spec: Record<string, unknown>) =>
+    req<Consumer>(
+      `/mutate/streams/${encodeURIComponent(stream)}/consumers/${encodeURIComponent(consumer)}`,
+      { method: "PUT", body: JSON.stringify(spec) },
+    ),
+
   /** Pass `expectedRevision` to refuse to clobber a value that changed since it was read. */
   kvPut: (bucket: string, key: string, value: string, expectedRevision?: number) =>
     req<{ revision: number }>(`/mutate/kv/${encodeURIComponent(bucket)}/keys/${encodeURIComponent(key)}`, {
