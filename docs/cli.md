@@ -9,6 +9,16 @@ Every Query Engine tool needs an explicit limit so agents cannot ask for unbound
 The CLI sends `--limit 50` when you omit it, so `nats-trail streams list` works as typed; pass
 `--limit <n>` (max 200) to change it. The examples below stay explicit on purpose.
 
+## Post-filters and the scan budget
+
+`--subject`, `--from-ts` and `--to-ts` are applied by the NATS server. `--text`, `--request-id`
+and `--correlation-id` need the payload, so they are evaluated after messages are read.
+
+Those post-filters page through the scan budget until they fill `--limit` or exhaust `--max-scan`,
+so a match deep in a stream is found even with a small limit. When the budget runs out first you get
+a `scan.budget_exhausted` warning and a `nextCursor` to resume from — an incomplete answer never
+looks like a complete one.
+
 ## Run
 
 ```bash

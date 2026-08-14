@@ -60,6 +60,67 @@ export interface McpRuntimeData {
 /** Page size used when a tool scans a stream window incrementally. */
 const SCAN_PAGE_SIZE = 500;
 
+interface CollectResult {
+  messages: Message[];
+  scanned: number;
+  nextCursor: string | null;
+  warnings: QueryWarning[];
+}
+
+/**
+ * Page through one stream's scan window, keeping messages a predicate accepts,
+ * until `limit` matches are found or the scan budget runs out.
+ *
+ * Filters the server can apply (subject, time window) belong in `window`.
+ * Anything needing the payload — free text, correlation ids, a saved filter's
+ * event type — is a post-filter, and applying a post-filter to a single page of
+ * `limit` messages reports "no matches" whenever the matches sit deeper in the
+ * stream. That false negative is what this exists to prevent.
+ */
+async function collectMatching(
+  queryStreamMessages: NonNullable<McpRuntimeData["queryStreamMessages"]>,
+  window: { stream: string; subject?: string; fromTs?: number; toTs?: number },
+  limit: number,
+  budget: number,
+  cursor: number | undefined,
+  keep: (message: Message) => boolean,
+): Promise<CollectResult> {
+  const messages: Message[] = [];
+  const warnings: QueryWarning[] = [];
+  let startSeq = cursor;
+  let scanned = 0;
+  let nextCursor: string | null = null;
+
+  while (scanned < budget && messages.length < limit) {
+    const page = await queryStreamMessages({
+      ...window,
+      limit: Math.min(SCAN_PAGE_SIZE, budget - scanned),
+      startSeq,
+      maxScan: budget - scanned,
+    });
+    scanned += page.scanned;
+    warnings.push(...page.warnings);
+    for (const message of page.messages) {
+      if (messages.length >= limit) break;
+      if (keep(message)) messages.push(message);
+    }
+    nextCursor = page.nextCursor;
+    if (!page.nextCursor) break;
+    startSeq = parseCursor(page.nextCursor);
+  }
+
+  // Stopping short of `limit` with stream left over is not "no more matches";
+  // say so, or the caller reads an incomplete answer as a complete one.
+  if (messages.length < limit && nextCursor) {
+    warnings.push({
+      code: "scan.budget_exhausted",
+      message: `Scanned ${scanned} messages without filling the limit. Pass a larger maxScan, a narrower subject, or resume from nextCursor.`,
+    });
+  }
+
+  return { messages, scanned, nextCursor, warnings };
+}
+
 interface AgentDlqEvent {
   message: AgentMessage;
   originalSubject: string | null;
@@ -135,17 +196,23 @@ async function executeMcpToolInner(name: string, input: Record<string, unknown>,
     if (!filter) return inputError(name, limit, `filter not found: ${filterName}`);
     if (!filter.stream) return inputError(name, limit, `filter requires a stream: ${filter.id}`);
     try {
-      const page = await data.queryStreamMessages({
-        stream: filter.stream,
-        subject: filter.subject,
+      // A saved filter's text and eventType are post-filters, so this pages the
+      // budget for the same reason search_messages does.
+      const collected = await collectMatching(
+        data.queryStreamMessages,
+        { stream: filter.stream, subject: filter.subject, fromTs: filter.fromTs, toTs: filter.toTs },
         limit,
-        startSeq: parseCursor(input.cursor),
-        fromTs: filter.fromTs,
-        toTs: filter.toTs,
-        maxScan: numberInput(input.maxScan),
+        normalizeScan(input.maxScan),
+        parseCursor(input.cursor),
+        (message) => matchFilter(filter, message),
+      );
+      return createQueryEnvelope({
+        query: { tool: name, contextId: input.contextId, filter: filter.id },
+        results: collected.messages.map((message) => toAgentMessage(message, filter.stream)),
+        limit,
+        nextCursor: collected.nextCursor,
+        warnings: collected.warnings,
       });
-      const results = page.messages.filter((message) => matchFilter(filter, message)).map((message) => toAgentMessage(message, filter.stream));
-      return createQueryEnvelope({ query: { tool: name, contextId: input.contextId, filter: filter.id }, results, limit, nextCursor: page.nextCursor, warnings: page.warnings });
     } catch (err) {
       return toolError(name, limit, err);
     }
@@ -211,22 +278,70 @@ async function executeMcpToolInner(name: string, input: Record<string, unknown>,
     if (!data.queryStreamMessages) return notImplemented(name, limit);
     const stream = String(input.stream ?? "");
     if (!stream) return inputError(name, limit, "stream is required");
+    // `subject`, `fromTs` and `toTs` are applied by the server. The rest can only
+    // be evaluated after a payload is read, so they are post-filters — and a
+    // post-filter applied to a single page of `limit` messages silently reports
+    // "no matches" whenever the matches sit deeper in the stream. When one is
+    // present, page through the scan budget instead of reading one page.
+    const postFiltered =
+      stringInput(input.text) !== undefined ||
+      stringInput(input.requestId) !== undefined ||
+      stringInput(input.correlationId) !== undefined;
+
+    const keep = (message: Message): boolean => {
+      if (!matchesString(message.data, input.text)) return false;
+      const shaped = toAgentMessage(message, stream);
+      return (
+        matchesString(shaped.requestId, input.requestId) &&
+        matchesString(shaped.correlationId, input.correlationId)
+      );
+    };
+
+    const query = {
+      tool: name,
+      contextId: input.contextId,
+      stream,
+      subject: input.subject,
+      requestId: input.requestId,
+      correlationId: input.correlationId,
+      text: input.text,
+    };
+
     try {
-      const page = await data.queryStreamMessages({
-        stream,
-        subject: stringInput(input.subject),
+      if (!postFiltered) {
+        const page = await data.queryStreamMessages({
+          stream,
+          subject: stringInput(input.subject),
+          limit,
+          startSeq: parseCursor(input.cursor),
+          fromTs: numberInput(input.fromTs),
+          toTs: numberInput(input.toTs),
+          maxScan: numberInput(input.maxScan),
+        });
+        const results = page.messages.map((msg) => toAgentMessage(msg, stream));
+        return createQueryEnvelope({ query, results, limit, nextCursor: page.nextCursor, warnings: page.warnings });
+      }
+
+      const collected = await collectMatching(
+        data.queryStreamMessages,
+        {
+          stream,
+          subject: stringInput(input.subject),
+          fromTs: numberInput(input.fromTs),
+          toTs: numberInput(input.toTs),
+        },
         limit,
-        startSeq: parseCursor(input.cursor),
-        fromTs: numberInput(input.fromTs),
-        toTs: numberInput(input.toTs),
-        maxScan: numberInput(input.maxScan),
+        normalizeScan(input.maxScan),
+        parseCursor(input.cursor),
+        keep,
+      );
+      return createQueryEnvelope({
+        query,
+        results: collected.messages.map((msg) => toAgentMessage(msg, stream)),
+        limit,
+        nextCursor: collected.nextCursor,
+        warnings: collected.warnings,
       });
-      const results = page.messages
-        .filter((msg) => matchesString(msg.data, input.text))
-        .map((msg) => toAgentMessage(msg, stream))
-        .filter((msg) => matchesString(msg.requestId, input.requestId))
-        .filter((msg) => matchesString(msg.correlationId, input.correlationId));
-      return createQueryEnvelope({ query: { tool: name, contextId: input.contextId, stream, subject: input.subject, requestId: input.requestId, correlationId: input.correlationId, text: input.text }, results, limit, nextCursor: page.nextCursor, warnings: page.warnings });
     } catch (err) {
       return toolError(name, limit, err);
     }
