@@ -250,6 +250,31 @@ router.get("/obj/:bucket/objects", async (req, res) => {
   }
 });
 
+router.get("/flow", async (req, res) => {
+  const requestId = typeof req.query.requestId === "string" ? req.query.requestId : undefined;
+  const correlationId = typeof req.query.correlationId === "string" ? req.query.correlationId : undefined;
+  if (!requestId && !correlationId) {
+    return res.status(400).json({ error: normalizeError("requestId or correlationId is required") });
+  }
+  const envelope = await executeIntegrationTool("natstrail.reconstruct_flow", {
+    contextId: requestContextId(req),
+    requestId,
+    correlationId,
+    limit: Number(req.query.limit) || 100,
+  });
+  if (envelope.errors.length) return res.status(409).json({ error: envelope.errors[0] });
+  res.json(envelope.results[0] ?? null);
+});
+
+router.get("/health-summary", async (req, res) => {
+  const envelope = await executeIntegrationTool("natstrail.get_health_summary", {
+    contextId: requestContextId(req),
+    limit: Number(req.query.limit) || 50,
+  });
+  if (envelope.errors.length) return res.status(409).json({ error: envelope.errors[0] });
+  res.json(envelope.results);
+});
+
 router.get("/server/health", async (req, res) => {
   try {
     res.json(await fetchServerHealth(requireContext(requestContextId(req))));

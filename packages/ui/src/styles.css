@@ -795,3 +795,35 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: var(--fs-13); }
   text-transform: uppercase; letter-spacing: 0.06em; }
 .stat__value { color: var(--text); font-size: var(--fs-xl); font-weight: 500; line-height: 1.2; margin-top: 2px; }
 .stat__hint { color: var(--muted); font-size: var(--fs-xs); font-family: var(--font-mono); margin-top: 2px; }
+
+/* Flow reconstruction timeline */
+.flow { display: flex; flex-direction: column; overflow-y: auto; padding: var(--sp-2) 0; }
+.flowstep { display: grid; grid-template-columns: 26px 1fr; gap: var(--sp-2); }
+.flowstep__rail { display: flex; flex-direction: column; align-items: center; }
+.flowstep__dot { color: var(--ok); font-size: 15px; line-height: 1; display: flex; }
+.flowstep__line { flex: 1; width: 2px; background: var(--border); margin: 3px 0; min-height: 14px; }
+.flowstep--failed .flowstep__dot { color: var(--err); }
+.flowstep--dlq .flowstep__dot { color: var(--err); }
+.flowstep__body { padding-bottom: var(--sp-3); min-width: 0; }
+.flowstep__head { display: flex; align-items: baseline; gap: var(--sp-2); }
+.flowstep__subject { font-family: var(--font-mono); font-size: var(--fs-13); color: var(--text); }
+.flowstep--failed .flowstep__subject, .flowstep--dlq .flowstep__subject { color: var(--err); }
+.flowstep__delta { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--faint); }
+.flowstep__meta { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--faint); margin-top: 2px; }
+.flowstep__detail {
+  font-family: var(--font-mono); font-size: var(--fs-sm); color: var(--err);
+  background: var(--err-wash); border-radius: var(--r-sm);
+  padding: 3px 7px; margin-top: var(--sp-1); display: inline-block;
+}
+
+/* Health findings */
+.findings { display: flex; flex-direction: column; gap: var(--sp-15); overflow-y: auto; padding: var(--sp-1) 0; }
+.finding {
+  display: flex; gap: var(--sp-2); align-items: flex-start;
+  border: 1px solid var(--border); border-radius: var(--r-lg);
+  padding: var(--sp-2) var(--sp-25); background: var(--surface);
+}
+.finding--critical { border-color: color-mix(in srgb, var(--err) 40%, var(--border)); color: var(--err); }
+.finding--warning { border-color: color-mix(in srgb, var(--warn) 40%, var(--border)); color: var(--warn); }
+.finding__msg { color: var(--text); font-size: var(--fs-13); }
+.finding__meta { color: var(--faint); font-size: var(--fs-2xs); font-family: var(--font-mono); margin-top: 2px; }

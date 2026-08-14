@@ -176,3 +176,10 @@ consumers reported by the server. Critical first, then by magnitude.
 
 All three are read-only, bounded by the same envelope, and available as `nats-trail discover`,
 `nats-trail flow` and `nats-trail health`.
+
+### Trace panel (UI)
+The `Trace` tab renders a reconstructed flow as a timeline: one step per event, elapsed time between
+steps, the stream each came from, and the failing step highlighted with its error. A "What is
+broken?" button runs the health summary in place.
+
+Backed by `/api/flow?requestId=…` and `/api/health-summary`.

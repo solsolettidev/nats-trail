@@ -6,6 +6,9 @@ import type {
   KvEntry,
   ObjectBucket,
   ObjectEntry,
+  Flow,
+  FlowStep,
+  HealthFinding,
   ServerConnection,
   ServerHealth,
   Stream,
@@ -17,6 +20,9 @@ export type {
   Context,
   ConnectionState,
   Filter,
+  Flow,
+  FlowStep,
+  HealthFinding,
   KvBucket,
   KvEntry,
   ObjectBucket,
@@ -86,6 +92,12 @@ export const api = {
   listObjectBuckets: () => req<ObjectBucket[]>("/obj"),
   listObjects: (bucket: string) =>
     req<ObjectEntry[]>(`/obj/${encodeURIComponent(bucket)}/objects`),
+
+  flowByRequestId: (requestId: string) =>
+    req<Flow>(`/flow?requestId=${encodeURIComponent(requestId)}`),
+  flowByCorrelationId: (correlationId: string) =>
+    req<Flow>(`/flow?correlationId=${encodeURIComponent(correlationId)}`),
+  healthSummary: () => req<HealthFinding[]>("/health-summary"),
 
   serverHealth: () => req<ServerHealth>("/server/health"),
   serverConnections: () => req<ServerConnection[]>("/server/connections"),
