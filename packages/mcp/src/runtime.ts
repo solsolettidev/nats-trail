@@ -27,11 +27,16 @@ import {
   type ObjectEntry,
   type ServerConnection,
   type ServerHealth,
+  type DLQEvent,
+  type Flow,
+  type HealthFinding,
+  type IncidentContext,
   type SubjectShape,
   inferFields,
   reconstructFlow,
   subjectsOfStream,
   summarizeHealth,
+  summarizeIncident,
 } from "@nats-trail/core";
 import { mcpTools, validateToolInput } from "./tools.js";
 
@@ -606,6 +611,49 @@ async function executeMcpToolInner(name: string, input: Record<string, unknown>,
     } catch (err) {
       return toolError(name, limit, err);
     }
+  }
+
+  if (name === "natstrail.enrich_incident") {
+    const error = validateConnectedContext(name, input, data);
+    if (error) return error;
+    const requestId = stringInput(input.requestId);
+    const correlationId = stringInput(input.correlationId);
+    if (!requestId && !correlationId) return inputError(name, limit, "requestId or correlationId is required");
+
+    const key: "request_id" | "correlation_id" = requestId ? "request_id" : "correlation_id";
+    const value = (requestId ?? correlationId)!;
+
+    // Composed from the read tools rather than re-querying: one definition of
+    // what a flow, a dead letter and a finding are.
+    const flowEnvelope = await executeMcpToolInner("natstrail.reconstruct_flow", input, data);
+    const dlqEnvelope = await executeMcpToolInner("natstrail.search_dlq", input, data);
+    const healthEnvelope = await executeMcpToolInner("natstrail.get_health_summary", input, data);
+
+    const flow = (flowEnvelope.results[0] as Flow | undefined) ?? null;
+    // Only dead letters that belong to this incident.
+    const dlq = (dlqEnvelope.results as AgentDlqEvent[]).filter(
+      (event) => event.message.requestId === value || event.message.correlationId === value,
+    );
+    const findings = healthEnvelope.results as HealthFinding[];
+    const uiBase = stringInput(input.uiBaseUrl)?.replace(/\/+$/, "");
+
+    const context: IncidentContext = {
+      key,
+      value,
+      summary: summarizeIncident({ value, flow, dlq: dlq as unknown as DLQEvent[], findings }),
+      flow,
+      dlq: dlq as unknown as DLQEvent[],
+      findings,
+      traceUrl: uiBase ? `${uiBase}/?tab=trace&${key === "request_id" ? "requestId" : "correlationId"}=${encodeURIComponent(value)}` : null,
+    };
+
+    return createQueryEnvelope({
+      query: { tool: name, contextId: input.contextId, [key]: value },
+      results: [context],
+      limit,
+      warnings: [...flowEnvelope.warnings, ...dlqEnvelope.warnings],
+      errors: [...flowEnvelope.errors, ...dlqEnvelope.errors],
+    });
   }
 
   if (name === "natstrail.enrich_sentry") {

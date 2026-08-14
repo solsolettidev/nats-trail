@@ -82,6 +82,13 @@ export const mcpTools: McpToolDefinition[] = [
     SCAN_TIMEOUT_MS,
   ),
   tool(
+    "natstrail.enrich_incident",
+    "Flat, destination-agnostic context for one incident: the reconstructed flow, related dead letters, current health findings and a one-sentence summary.",
+    { contextId: { type: "string" }, requestId: { type: "string" }, correlationId: { type: "string" }, uiBaseUrl: { type: "string", description: "Base URL used to build a deep link back into the Trace tab." }, limit: limitProperty, fromTs: fromTsProperty, toTs: toTsProperty, maxScan: maxScanProperty },
+    ["contextId", "limit"],
+    SCAN_TIMEOUT_MS,
+  ),
+  tool(
     "natstrail.get_health_summary",
     "What looks broken right now: consumers falling behind, redeliveries, dead letters and slow consumers, ranked worst first.",
     { contextId: { type: "string" }, limit: limitProperty },

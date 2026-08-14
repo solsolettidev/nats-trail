@@ -2,6 +2,7 @@ import { isDlqSubject } from "./dlq.js";
 import type {
   AgentMessage,
   Consumer,
+  DLQEvent,
   Flow,
   FlowStep,
   HealthFinding,
@@ -146,6 +147,48 @@ export function reconstructFlow(
     failedAt,
     streams: [...new Set(steps.map((step) => step.stream).filter(Boolean))],
   };
+}
+
+/**
+ * One sentence describing an incident, for a notification body or annotation.
+ *
+ * Leads with the failure because that is what the reader needs first; falls back
+ * to describing a healthy flow so a caller never has to special-case an empty
+ * summary.
+ */
+export function summarizeIncident(input: {
+  value: string;
+  flow: Flow | null;
+  dlq: DLQEvent[];
+  findings: HealthFinding[];
+}): string {
+  const parts: string[] = [];
+
+  if (input.flow && input.flow.steps.length > 0) {
+    const { flow } = input;
+    if (flow.failedAt) {
+      parts.push(
+        `${input.value} failed at ${flow.failedAt.subject}${flow.failedAt.detail ? `: ${flow.failedAt.detail}` : ""}`,
+      );
+      parts.push(`after ${flow.steps.length} steps across ${flow.streams.length} stream(s) in ${formatMs(flow.durationMs)}`);
+    } else {
+      parts.push(`${input.value} completed ${flow.steps.length} steps across ${flow.streams.length} stream(s) in ${formatMs(flow.durationMs)}`);
+    }
+  } else {
+    parts.push(`No messages found for ${input.value} in the scanned window`);
+  }
+
+  if (input.dlq.length > 0) parts.push(`${input.dlq.length} related dead-letter message(s)`);
+  const critical = input.findings.filter((f) => f.severity === "critical").length;
+  if (critical > 0) parts.push(`${critical} critical health finding(s) on this context`);
+
+  return `${parts.join("; ")}.`;
+}
+
+function formatMs(ms: number): string {
+  if (ms < 1000) return `${ms}ms`;
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
+  return `${Math.round(ms / 1000)}s`;
 }
 
 /** Thresholds above which a measurement is worth reporting. */

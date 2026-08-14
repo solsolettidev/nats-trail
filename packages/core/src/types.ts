@@ -286,6 +286,25 @@ export interface Flow {
   streams: string[];
 }
 
+/**
+ * Flat, destination-agnostic context for one incident.
+ *
+ * Deliberately not a bundle of query envelopes: an external tool wants
+ * something it can render, not nested pagination metadata.
+ */
+export interface IncidentContext {
+  /** The correlation value the incident was looked up by. */
+  key: "request_id" | "correlation_id";
+  value: string;
+  /** One sentence a human can read in a notification. */
+  summary: string;
+  flow: Flow | null;
+  dlq: DLQEvent[];
+  findings: HealthFinding[];
+  /** Deep link back into the UI's Trace tab. */
+  traceUrl: string | null;
+}
+
 /** One thing that looks wrong right now. */
 export interface HealthFinding {
   code: string;

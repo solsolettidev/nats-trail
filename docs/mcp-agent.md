@@ -149,3 +149,37 @@ be truncated, and common `request_id` / `correlation_id` fields are extracted wh
 Sentry enrichment accepts `contextId`, optional `requestId`, optional `correlationId` and `limit`.
 It returns a single envelope result containing trace envelopes and a DLQ envelope.
 The endpoint delegates to the `natstrail.enrich_sentry` tool so MCP and HTTP return the same shape.
+
+## Incident enrichment
+
+`natstrail.enrich_incident` returns one flat, destination-agnostic object rather than a bundle of
+query envelopes:
+
+```json
+{
+  "key": "request_id",
+  "value": "req-8f21c",
+  "summary": "req-8f21c failed at bronze.etl.failed: upstream 503 from provider api; after 5 steps across 3 stream(s) in 3ms; 1 related dead-letter message(s).",
+  "flow": { "steps": [], "failedAt": {}, "durationMs": 3, "streams": [] },
+  "dlq": [],
+  "findings": [],
+  "traceUrl": "http://localhost:4000/?tab=trace&requestId=req-8f21c"
+}
+```
+
+Dead letters are filtered to the incident, not to the whole context. `summary` is one sentence that
+leads with the failure, so it can be dropped straight into a notification body.
+
+### Destination adapters
+
+Each route below reshapes that same context for one tool's format. Adding a destination means adding
+a shaper, never another query:
+
+| Route | Shape |
+|---|---|
+| `POST /api/integration/enrich/incident` | The context itself |
+| `POST /api/integration/enrich/grafana` | Annotation: `time`, `timeEnd`, `tags`, `text` |
+| `POST /api/integration/enrich/datadog` | Event: `title`, markdown `text`, `alert_type`, `tags`, `aggregation_key` |
+| `POST /api/integration/enrich/sentry` | `message`, `level`, `fingerprint`, `contexts["nats-trail"]` |
+
+Pass `uiBaseUrl` to get a `traceUrl` deep link back into the Trace tab.

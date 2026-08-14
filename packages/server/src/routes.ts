@@ -7,6 +7,7 @@ import {
   type ConsumerSpec,
   type Context,
   type Filter,
+  type IncidentContext,
   type StreamSpec,
 } from "@nats-trail/core";
 import { executeMcpTool, mcpTools } from "@nats-trail/mcp";
@@ -71,19 +72,120 @@ router.post("/integration/tools/:name", async (req, res) => {
   res.json(envelope);
 });
 
-router.post("/integration/enrich/sentry", async (req, res) => {
+
+/**
+ * Enrichment adapters.
+ *
+ * One read tool builds the context (`natstrail.enrich_incident`); each route
+ * below only reshapes it for a destination's annotation format. Adding a
+ * destination means adding a shaper, never another query.
+ */
+async function incidentContext(req: Request): Promise<{ context: IncidentContext | null; errors: unknown[]; returned: number }> {
   const input = req.body as Record<string, unknown>;
-  const envelope = await executeIntegrationTool("natstrail.enrich_sentry", input);
+  const envelope = await executeIntegrationTool("natstrail.enrich_incident", {
+    ...input,
+    contextId: typeof input.contextId === "string" ? input.contextId : requestContextId(req),
+    limit: Number(input.limit) || 100,
+  });
+  return {
+    context: (envelope.results[0] as IncidentContext | undefined) ?? null,
+    errors: envelope.errors,
+    returned: envelope.summary.returned,
+  };
+}
+
+function auditEnrichment(req: Request, res: Response, tool: string, returned: number, errorCount: number): void {
   appendAuditEntry({
     timestamp: Date.now(),
     origin: readAuditOrigin(req.header("x-nats-trail-origin")),
     identity: (res.locals.identity as string | null) ?? null,
-    tool: "sentry.enrich",
-    contextId: typeof input.contextId === "string" ? input.contextId : null,
-    resultCount: envelope.summary.returned,
-    errorCount: envelope.errors.length,
+    tool,
+    contextId: typeof (req.body as Record<string, unknown>)?.contextId === "string" ? ((req.body as Record<string, unknown>).contextId as string) : null,
+    resultCount: returned,
+    errorCount,
   });
-  res.json(envelope);
+}
+
+router.post("/integration/enrich/incident", async (req, res) => {
+  const { context, errors, returned } = await incidentContext(req);
+  auditEnrichment(req, res, "enrich.incident", returned, errors.length);
+  if (!context) return res.status(409).json({ errors });
+  res.json(context);
+});
+
+/** Grafana annotation: a dashboard marker with tags and an HTML-ish body. */
+router.post("/integration/enrich/grafana", async (req, res) => {
+  const { context, errors, returned } = await incidentContext(req);
+  auditEnrichment(req, res, "enrich.grafana", returned, errors.length);
+  if (!context) return res.status(409).json({ errors });
+
+  const first = context.flow?.steps[0];
+  const last = context.flow?.steps[context.flow.steps.length - 1];
+  res.json({
+    time: first?.timestamp ?? Date.now(),
+    timeEnd: last?.timestamp ?? undefined,
+    tags: [
+      "nats-trail",
+      context.key,
+      context.flow?.failed ? "failed" : "ok",
+      ...(context.flow?.streams ?? []).map((stream) => `stream:${stream}`),
+    ],
+    text: context.traceUrl ? `${context.summary} <a href="${context.traceUrl}">Open trace</a>` : context.summary,
+  });
+});
+
+/** Datadog event: title, markdown text, alert type and tags. */
+router.post("/integration/enrich/datadog", async (req, res) => {
+  const { context, errors, returned } = await incidentContext(req);
+  auditEnrichment(req, res, "enrich.datadog", returned, errors.length);
+  if (!context) return res.status(409).json({ errors });
+
+  const steps = (context.flow?.steps ?? [])
+    .map((step) => `- \`${step.subject}\` (${step.stream}) ${step.status}${step.detail ? ` — ${step.detail}` : ""}`)
+    .join("\n");
+
+  res.json({
+    title: `NATS Trail: ${context.value}`,
+    text: [
+      `%%%`,
+      context.summary,
+      "",
+      steps ? `**Flow**\n${steps}` : "No flow reconstructed.",
+      context.traceUrl ? `\n[Open trace](${context.traceUrl})` : "",
+      `%%%`,
+    ].join("\n"),
+    alert_type: context.flow?.failed ? "error" : "info",
+    source_type_name: "nats-trail",
+    aggregation_key: context.value,
+    tags: ["nats-trail", `${context.key}:${context.value}`, ...(context.flow?.streams ?? []).map((s) => `stream:${s}`)],
+  });
+});
+
+// Kept for compatibility: the original Sentry shape, now built from the same
+// context rather than a bundle of nested envelopes.
+router.post("/integration/enrich/sentry", async (req, res) => {
+  const { context, errors, returned } = await incidentContext(req);
+  auditEnrichment(req, res, "sentry.enrich", returned, errors.length);
+  if (!context) return res.status(409).json({ errors });
+
+  res.json({
+    message: context.summary,
+    level: context.flow?.failed ? "error" : "info",
+    fingerprint: [context.key, context.value],
+    contexts: {
+      "nats-trail": {
+        [context.key]: context.value,
+        failed_at: context.flow?.failedAt?.subject ?? null,
+        failure_reason: context.flow?.failedAt?.detail ?? null,
+        streams: context.flow?.streams ?? [],
+        steps: context.flow?.steps.length ?? 0,
+        duration_ms: context.flow?.durationMs ?? null,
+        dead_letters: context.dlq.length,
+        trace_url: context.traceUrl,
+      },
+    },
+    extra: { flow: context.flow?.steps ?? [], findings: context.findings },
+  });
 });
 
 // ---- Saved filters ---------------------------------------------------------
