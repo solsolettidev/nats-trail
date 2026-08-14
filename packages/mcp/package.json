@@ -1,6 +1,6 @@
 {
   "name": "@nats-trail/mcp",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -21,7 +21,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@nats-trail/core": "0.3.0"
+    "@nats-trail/core": "0.4.0"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",
