@@ -64,7 +64,12 @@ export function createQueryEnvelope<T>(input: {
 }
 
 export function toAgentMessage(message: Message, stream?: string, maxPayloadBytes = DEFAULT_PAYLOAD_LIMIT): AgentMessage {
-  const payload = truncateText(message.data, maxPayloadBytes);
+  const encoding = message.encoding ?? (message.isJson ? "json" : "text");
+  // Binary payloads travel as base64: the decoded text is lossy, and handing an
+  // agent replacement characters invites it to reason about bytes that were
+  // never there.
+  const source = encoding === "binary" ? message.base64 ?? "" : message.data;
+  const payload = truncateText(source, maxPayloadBytes);
   return {
     id: message.id,
     subject: message.subject,
@@ -74,6 +79,7 @@ export function toAgentMessage(message: Message, stream?: string, maxPayloadByte
     size: message.size,
     isJson: message.isJson,
     payload: payload.value,
+    encoding,
     payloadTruncated: payload.truncated,
     json: payload.truncated ? null : message.json,
     requestId: extractString(message.json, ["request_id", "requestId", "req_id"]),

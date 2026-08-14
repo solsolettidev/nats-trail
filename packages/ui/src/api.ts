@@ -91,14 +91,4 @@ export const api = {
   serverConnections: () => req<ServerConnection[]>("/server/connections"),
 };
 
-/** Pretty-print a message payload (JSON when possible). Mirrors core.formatPayload. */
-export function formatPayload(m: Message): string {
-  if (m.isJson) {
-    try {
-      return JSON.stringify(m.json, null, 2);
-    } catch {
-      return m.data;
-    }
-  }
-  return m.data;
-}
+export { formatPayload } from "@nats-trail/core";

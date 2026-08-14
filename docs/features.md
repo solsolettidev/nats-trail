@@ -133,3 +133,17 @@ CLI only — the MCP runtime stays read-only by construction.
   `monitorUrl`.
 - Exposed as `/api/server/health` and `/api/server/connections`, `nats-trail server health|connections`,
   and the tools `natstrail.get_server_health` and `natstrail.list_server_connections`.
+
+## Payload encodings
+
+- Every message carries an `encoding`: `json`, `text` or `binary`.
+- A payload is `binary` when the bytes are not valid UTF-8 — protobuf, msgpack, compressed blobs.
+  The bridge now passes the original bytes through, so binary payloads are no longer reduced to
+  replacement characters.
+- Binary payloads get a hex dump with an offset column and an ASCII gutter, plus a base64 copy
+  action. Both are capped at the first 1 KB.
+- Agents receive binary payloads as **base64** with `encoding: "binary"`, never as lossy text — an
+  agent must not reason about bytes that were never there.
+
+> Protobuf and msgpack are shown as byte dumps, not decoded into fields. Decoding protobuf needs a
+> schema descriptor per subject, and msgpack needs a decoding dependency; both are open decisions.

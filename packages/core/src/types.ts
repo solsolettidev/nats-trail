@@ -52,17 +52,30 @@ export interface ConnectionState {
   reconnects: number;
 }
 
+/**
+ * How a payload should be read.
+ *
+ * `binary` means the bytes are not valid UTF-8 text, so `data` is lossy and
+ * `hex` / `base64` are the only faithful representations.
+ */
+export type PayloadEncoding = "json" | "text" | "binary";
+
 export interface Message {
   id: string;
   subject: string;
   /** Epoch milliseconds when the message was received/stored. */
   timestamp: number;
-  /** Raw payload as UTF-8 text (best effort). */
+  /** Raw payload as UTF-8 text. Lossy when `encoding` is `binary`. */
   data: string;
   /** Parsed JSON when the payload is valid JSON, otherwise null. */
   json: unknown | null;
   /** True when `json` is populated. */
   isJson: boolean;
+  encoding: PayloadEncoding;
+  /** Space-separated hex bytes, only for binary payloads and capped in length. */
+  hex?: string;
+  /** Base64 of the payload, only for binary payloads and capped in length. */
+  base64?: string;
   /** Payload size in bytes. */
   size: number;
   /** NATS reply subject, if any. */
@@ -320,7 +333,12 @@ export interface AgentMessage {
   seq?: number;
   size: number;
   isJson: boolean;
+  /**
+   * Payload as text, or base64 when `encoding` is `binary` — an agent must
+   * never be handed a lossy UTF-8 rendering of bytes without being told.
+   */
   payload: string;
+  encoding: PayloadEncoding;
   payloadTruncated: boolean;
   json: unknown | null;
   requestId: string | null;

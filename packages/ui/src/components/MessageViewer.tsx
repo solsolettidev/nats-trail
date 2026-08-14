@@ -3,6 +3,13 @@ import { api, formatPayload, type Message } from "../api.js";
 import { Badge, Icon, fmtBytes, fmtInt, fmtTime, highlight } from "./ui.js";
 import { Empty } from "./states.js";
 
+/** Payload badge colour: JSON reads as structured, binary as a warning. */
+function badgeVariant(encoding: Message["encoding"]): string {
+  if (encoding === "json") return "json";
+  if (encoding === "binary") return "warn";
+  return "text";
+}
+
 export function MessageViewer({
   message,
   fullscreenable,
@@ -45,6 +52,7 @@ export function MessageViewer({
       </div>
     );
 
+  const binary = message.encoding === "binary";
   const showTree = mode === "tree" && message.isJson;
   const q = query.trim().toLowerCase();
 
@@ -56,13 +64,18 @@ export function MessageViewer({
             {message.subject}
           </span>
           <span className="viewer__badges">
-            <Badge variant={message.isJson ? "json" : "text"}>{message.isJson ? "JSON" : "TEXT"}</Badge>
+<Badge variant={badgeVariant(message.encoding)}>{(message.encoding ?? "text").toUpperCase()}</Badge>
             <Badge>{fmtBytes(message.size)}</Badge>
             {message.seq != null && <Badge variant="seq">seq {fmtInt(message.seq)}</Badge>}
             <Badge>{fmtTime(message.timestamp)}</Badge>
           </span>
         </div>
         <div className="viewer__actions">
+          {binary && message.base64 && (
+            <button className="btn btn--sm btn--ghost" onClick={() => copy(message.base64!, "b64")}>
+              <Icon name={copied === "b64" ? "check" : "copy"} /> Base64
+            </button>
+          )}
           {message.isJson && (
             <div className="seg" role="tablist" aria-label="View mode">
               <button aria-pressed={mode === "tree"} onClick={() => mode !== "tree" && toggleMode()}>
@@ -100,6 +113,11 @@ export function MessageViewer({
           />
         </div>
         {showTree && <span className="viewer__matchcount">click a key to copy its path</span>}
+        {binary && (
+          <span className="viewer__matchcount">
+            not valid UTF-8 · showing a hex dump of the first {fmtBytes(hexBytes(message.hex))}
+          </span>
+        )}
       </div>
 
       <div className="viewer__body">
@@ -111,6 +129,11 @@ export function MessageViewer({
       </div>
     </div>
   );
+}
+
+/** Byte count represented by a space-separated hex string. */
+function hexBytes(hex: string | undefined): number {
+  return hex ? hex.split(" ").filter(Boolean).length : 0;
 }
 
 function Raw({ text, query }: { text: string; query: string }) {

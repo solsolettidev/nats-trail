@@ -103,6 +103,7 @@ export function attachWebSocket(server: Server): void {
             const message = parseMessage({
               subject: m.subject,
               data: decoder.decode(m.data),
+              bytes: m.data,
               timestamp: Date.now(),
               size: m.data.length,
               reply: m.reply,
@@ -183,6 +184,7 @@ export function attachWebSocket(server: Server): void {
               message: parseMessage({
                 subject: m.subject,
                 data: decoder.decode(m.data),
+                bytes: m.data,
                 timestamp: m.info?.timestampNanos ? Math.round(m.info.timestampNanos / 1e6) : Date.now(),
                 size: m.data.length,
                 seq: m.seq,

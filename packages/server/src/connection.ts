@@ -357,6 +357,7 @@ class ManagedConnection {
             parseMessage({
               subject: m.subject,
               data: decoder.decode(m.data),
+              bytes: m.data,
               timestamp: ts,
               size: m.data.length,
               seq: m.seq,
@@ -442,6 +443,7 @@ function directToMessage(msg: DirectMessageLike): Message {
   return parseMessage({
     subject: msg.subject,
     data: decoder.decode(msg.data),
+    bytes: msg.data,
     timestamp: msg.info?.timestampNanos ? Math.round(msg.info.timestampNanos / 1e6) : (msg.time ?? msg.timestamp ?? new Date()).getTime(),
     size: msg.data.length,
     seq: msg.seq,
