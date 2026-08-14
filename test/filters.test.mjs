@@ -117,3 +117,31 @@ test("monitoringUrl derives the monitoring port and honours an override", () => 
   assert.equal(monitoringUrl({ url: "nonsense" }), null);
   assert.equal(monitoringUrl({ url: "nats://a:4222", monitorUrl: "http://mon:9999/" }), "http://mon:9999");
 });
+
+test("validateContext checks nkey seeds", () => {
+  const base = { name: "ok", url: "nats://h:4222" };
+  assert.equal(validateContext({ ...base, auth: { type: "nkey" } }).length > 0, true, "nkey needs a seed");
+  assert.equal(validateContext({ ...base, auth: { type: "nkey", nkeySeed: "  " } }).length > 0, true);
+  assert.equal(
+    validateContext({ ...base, auth: { type: "nkey", nkeySeed: "not-a-seed" } }).length > 0,
+    true,
+    "a seed that is not shaped like one is rejected early, not at connect time",
+  );
+  assert.equal(
+    validateContext({ ...base, auth: { type: "nkey", nkeySeed: "SUACBDINSB5BZ5YFKJEH276KOJEA4OXAFBM6WOVXMGGURS7NY7VRUSATAU" } }).length,
+    0,
+  );
+});
+
+test("sanitizeContext strips an nkey seed", () => {
+  const clean = sanitizeContext({
+    id: "x",
+    name: "x",
+    environment: "custom",
+    url: "nats://h:4222",
+    auth: { type: "nkey", nkeySeed: "SUACBDINSB5BZ5YFKJEH276KOJEA4OXAFBM6WOVXMGGURS7NY7VRUSATAU" },
+    tls: { enabled: false },
+  });
+  assert.equal(JSON.stringify(clean).includes("SUACB"), false, "a seed is a credential and must never leave the bridge");
+  assert.equal(clean.auth.type, "nkey");
+});

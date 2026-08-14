@@ -2,7 +2,7 @@
 
 export type Environment = "local" | "dev" | "staging" | "prod" | "custom";
 
-export type AuthType = "none" | "userpass" | "token" | "creds";
+export type AuthType = "none" | "userpass" | "token" | "creds" | "nkey";
 
 export interface ContextAuth {
   type: AuthType;
@@ -11,6 +11,11 @@ export interface ContextAuth {
   token?: string;
   /** Path to a NATS .creds file (not the contents). */
   credsPath?: string;
+  /**
+   * Raw nkey seed (`SU…`). Held like a password: never returned by the API and
+   * never written to a log. Prefer `creds` when the account issues one.
+   */
+  nkeySeed?: string;
 }
 
 export interface ContextTLS {

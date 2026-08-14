@@ -35,6 +35,8 @@ export function ContextSelector({
   const [password, setPassword] = useState("");
   const [token, setToken] = useState("");
   const [credsPath, setCredsPath] = useState("");
+  const [nkeySeed, setNkeySeed] = useState("");
+  const [monitorUrl, setMonitorUrl] = useState("");
   const [tlsEnabled, setTlsEnabled] = useState(false);
   const [caPath, setCaPath] = useState("");
   const [serverName, setServerName] = useState("");
@@ -49,6 +51,8 @@ export function ContextSelector({
     setPassword("");
     setToken("");
     setCredsPath("");
+    setNkeySeed("");
+    setMonitorUrl("");
     setTlsEnabled(false);
     setCaPath("");
     setServerName("");
@@ -62,11 +66,13 @@ export function ContextSelector({
           ? { type: "token", token }
           : authType === "creds"
             ? { type: "creds", credsPath }
-          : { type: "none" };
+            : authType === "nkey"
+              ? { type: "nkey", nkeySeed }
+              : { type: "none" };
     const tls: Context["tls"] = tlsEnabled
       ? { enabled: true, caPath: caPath || undefined, serverName: serverName || undefined }
       : { enabled: false };
-    onCreate({ name, environment, url, auth, tls });
+    onCreate({ name, environment, url, monitorUrl: monitorUrl.trim() || undefined, auth, tls });
     reset();
   };
 
@@ -103,6 +109,7 @@ export function ContextSelector({
               <option value="userpass">User / password</option>
               <option value="token">Token</option>
               <option value="creds">.creds file</option>
+              <option value="nkey">nkey seed</option>
             </select>
           </div>
           <input
@@ -146,6 +153,23 @@ export function ContextSelector({
               onChange={(e) => setCredsPath(e.target.value)}
             />
           )}
+          {authType === "nkey" && (
+            <input
+              className="input mono"
+              type="password"
+              placeholder="SUAxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+              value={nkeySeed}
+              onChange={(e) => setNkeySeed(e.target.value)}
+              aria-label="nkey seed"
+            />
+          )}
+          <input
+            className="input mono"
+            placeholder="Monitoring URL (optional, default host:8222)"
+            value={monitorUrl}
+            onChange={(e) => setMonitorUrl(e.target.value)}
+            aria-label="Monitoring URL"
+          />
 
           <label className="contexts__check">
             <input

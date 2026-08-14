@@ -218,3 +218,11 @@ Or in `data/tokens.json`: `[{ "name": "writer", "token": "…", "scopes": ["writ
 
 A `read` token attempting a mutation gets `403` naming the token. Every mutation is audited with its
 action, target and arguments, success or failure, so a write can be reconstructed afterwards.
+
+## nkey auth and monitoring URL
+
+- Contexts accept a bare nkey seed (`SU…`) alongside none / user-password / token / `.creds`.
+  The seed is validated for shape at creation rather than failing at connect time, and it is
+  stripped by `sanitizeContext` like every other credential.
+- A context can override its HTTP monitoring endpoint with `monitorUrl` when the server does not
+  publish monitoring on the conventional port 8222.

@@ -32,6 +32,12 @@ export function validateContext(ctx: Partial<Context>): NormalizedError[] {
   } else if (!/^(nats|tls|ws|wss):\/\//.test(ctx.url.trim())) {
     fail("context.url", "URL must start with nats://, tls://, ws:// or wss://");
   }
+  if (ctx.auth?.type === "nkey" && !ctx.auth.nkeySeed?.trim()) {
+    fail("context.auth", "An nkey seed is required for nkey auth");
+  }
+  if (ctx.auth?.type === "nkey" && ctx.auth.nkeySeed && !/^S[A-Z0-9]{20,}$/.test(ctx.auth.nkeySeed.trim())) {
+    fail("context.auth", "An nkey seed looks like SUAxxxx… — this does not");
+  }
   if (ctx.environment && !ENVIRONMENTS.includes(ctx.environment)) {
     fail("context.environment", `Environment must be one of ${ENVIRONMENTS.join(", ")}`);
   }
@@ -58,7 +64,8 @@ export function sanitizeContext(ctx: Context): Context {
     auth: {
       type: ctx.auth.type,
       username: ctx.auth.username,
-      // password / token / credsPath intentionally omitted
+      // An allowlist, not a denylist: password, token, credsPath and nkeySeed
+      // are omitted, and any secret added later is excluded by default.
     },
     tls: { ...ctx.tls },
   };

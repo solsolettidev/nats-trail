@@ -132,6 +132,7 @@ router.post("/contexts", (req, res) => {
     name: body.name!.trim(),
     environment: body.environment ?? "custom",
     url: body.url!.trim(),
+    monitorUrl: body.monitorUrl?.trim() || undefined,
     auth: body.auth ?? { type: "none" },
     tls: body.tls ?? { enabled: false },
   };

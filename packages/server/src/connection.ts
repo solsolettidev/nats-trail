@@ -1,6 +1,7 @@
 import {
   connect,
   credsAuthenticator,
+  nkeyAuthenticator,
   AckPolicy,
   DeliverPolicy,
   type NatsConnection,
@@ -493,6 +494,8 @@ function toConnectionOptions(ctx: Context): ConnectionOptions {
     opts.token = ctx.auth.token;
   } else if (ctx.auth.type === "creds" && ctx.auth.credsPath) {
     opts.authenticator = credsAuthenticator(readFileSync(ctx.auth.credsPath));
+  } else if (ctx.auth.type === "nkey" && ctx.auth.nkeySeed) {
+    opts.authenticator = nkeyAuthenticator(new TextEncoder().encode(ctx.auth.nkeySeed.trim()));
   }
   if (ctx.tls.enabled) {
     opts.tls = {};
