@@ -512,6 +512,32 @@ mutations.put("/streams/:name/consumers/:consumer", async (req, res) => {
   }
 });
 
+mutations.put("/obj/:bucket/objects/:name", async (req, res) => {
+  const { value, description } = req.body as { value?: string; description?: string };
+  if (typeof value !== "string") return res.status(400).json({ error: normalizeError("value must be a string") });
+  const target = `${req.params.bucket}/${req.params.name}`;
+  try {
+    const object = await connectionPool.objectPut(requestContextId(req), req.params.bucket, req.params.name, value, description);
+    auditMutation(req, res, "object.put", target, { bytes: value.length, description });
+    res.json(object);
+  } catch (err) {
+    auditMutation(req, res, "object.put", target, {}, 1);
+    res.status(409).json({ error: normalizeError(err) });
+  }
+});
+
+mutations.delete("/obj/:bucket/objects/:name", async (req, res) => {
+  const target = `${req.params.bucket}/${req.params.name}`;
+  try {
+    await connectionPool.objectDelete(requestContextId(req), req.params.bucket, req.params.name);
+    auditMutation(req, res, "object.delete", target, {});
+    res.json({ ok: true });
+  } catch (err) {
+    auditMutation(req, res, "object.delete", target, {}, 1);
+    res.status(409).json({ error: normalizeError(err) });
+  }
+});
+
 mutations.put("/kv/:bucket/keys/:key", async (req, res) => {
   const { value, expectedRevision } = req.body as { value?: string; expectedRevision?: number };
   if (typeof value !== "string") return res.status(400).json({ error: normalizeError("value must be a string") });

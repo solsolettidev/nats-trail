@@ -107,10 +107,15 @@ test("stream and consumer upsert routes exist, are gated, and are audited", () =
     "consumer upsert must live under /mutate",
   );
   assert.equal(mutationBlock.includes('mutations.put("/kv/:bucket/keys/:key"'), true, "kv put must live under /mutate");
+  assert.equal(
+    mutationBlock.includes('mutations.put("/obj/:bucket/objects/:name"'),
+    true,
+    "object put must live under /mutate",
+  );
 });
 
 test("every CLI admin and KV write command refuses agent mode", () => {
-  for (const fn of ["upsertStream", "upsertConsumer", "kvPut", "kvRemove"]) {
+  for (const fn of ["upsertStream", "upsertConsumer", "kvPut", "kvRemove", "objectPut", "objectDelete"]) {
     const start = CLI.indexOf(`async function ${fn}(`);
     assert.equal(start > -1, true, `${fn} should exist in the CLI`);
     const body = CLI.slice(start, CLI.indexOf("\n}", start));

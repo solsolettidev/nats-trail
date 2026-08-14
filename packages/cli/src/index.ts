@@ -276,6 +276,16 @@ async function runCommand(args: string[]): Promise<void> {
     return;
   }
 
+  if (command[0] === "obj" && command[1] === "put") {
+    await objectPut(command.slice(2), output);
+    return;
+  }
+
+  if (command[0] === "obj" && command[1] === "delete") {
+    await objectDelete(command.slice(2), output);
+    return;
+  }
+
   if (command[0] === "kv" && command[1] === "put") {
     await kvPut(command.slice(2), output);
     return;
@@ -923,6 +933,37 @@ async function upsertConsumer(args: string[], output: Output): Promise<void> {
   else console.log(`${stream}/${result.name} ready, ${result.pending} pending`);
 }
 
+async function objectPut(args: string[], output: Output): Promise<void> {
+  requireHumanInvocation("obj put");
+  const input = readNamedArgs(args);
+  const bucket = stringValue(input.bucket);
+  const name = stringValue(input.name);
+  const value = stringValue(input.value);
+  if (!bucket || !name || value === undefined) {
+    fail("Usage: nats-trail obj put --bucket <name> --name <object> --value <text> [--description <text>]");
+  }
+  const result = await bridgeRequest<{ name: string; size: number }>(
+    `/mutate/obj/${encodeURIComponent(bucket)}/objects/${encodeURIComponent(name)}`,
+    { method: "PUT", body: JSON.stringify({ value, description: stringValue(input.description) }) },
+  );
+  if (output === "json" || output === "ndjson") printJson(result);
+  else console.log(`stored ${bucket}/${result.name} (${result.size} bytes)`);
+}
+
+async function objectDelete(args: string[], output: Output): Promise<void> {
+  requireHumanInvocation("obj delete");
+  const input = readNamedArgs(args);
+  const bucket = stringValue(input.bucket);
+  const name = stringValue(input.name);
+  if (!bucket || !name) fail("Usage: nats-trail obj delete --bucket <name> --name <object> --yes");
+  requireConfirmation("obj delete", `${bucket}/${name}`, input);
+  await bridgeRequest(
+    `/mutate/obj/${encodeURIComponent(bucket)}/objects/${encodeURIComponent(name)}`,
+    { method: "DELETE" },
+  );
+  if (output === "text") console.log(`deleted ${bucket}/${name}`);
+}
+
 async function kvPut(args: string[], output: Output): Promise<void> {
   requireHumanInvocation("kv put");
   const input = readNamedArgs(args);
@@ -1053,6 +1094,8 @@ Write commands (human and scripts only, never --agent):
   request                    Request/reply on a subject (--subject --payload)
   stream create              Create or update a stream (--stream --subjects)
   consumer create            Create or update a consumer (--stream --consumer)
+  obj put                    Store an object from text (--bucket --name --value)
+  obj delete                 Delete an object (--bucket --name) --yes
   kv put                     Set a key (--bucket --key --value [--expected-revision])
   kv delete                  Delete a key, keeping its history (--bucket --key) --yes
   kv purge                   Purge a key and its history (--bucket --key) --yes

@@ -201,6 +201,8 @@ NATS Trail can now change state, on the human surfaces only.
 | KV purge | — | `nats-trail kv purge` | Confirmation; discards the key history |
 | Create/update stream | JetStream *New stream* / row edit | `nats-trail stream create` | Illegal changes surface the server error |
 | Create/update consumer | Consumers *New consumer* | `nats-trail consumer create` | Durable by name |
+| Object put | — | `nats-trail obj put` | Text payloads only, by design |
+| Object delete | — | `nats-trail obj delete` | Confirmation |
 
 ### How the agent stays locked out
 

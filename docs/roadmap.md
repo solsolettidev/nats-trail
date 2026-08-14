@@ -52,7 +52,7 @@ none of it reaches the MCP runtime.
 | 2.2 | Purge stream, delete message | **done** — confirmation dialog in the UI, `--yes` in the CLI, always audited |
 | 2.3 | Consumer create / update / delete | **done** — durable by name; create and update are the same call |
 | 2.4 | Stream create / update / delete | **done** — delete must name the stream back; illegal live changes surface the server error. Backup/restore still open |
-| 2.5 | KV writes | **done** — set with optimistic concurrency, delete leaving a tombstone, purge discarding history. Object Store writes still open |
+| 2.5 | KV and Object Store writes | **done** — KV set with optimistic concurrency, delete leaving a tombstone, purge discarding history; object put and delete. Object put takes text, not a stream: the bridge is a debugging tool, not a file transfer service |
 | 2.6 | **Token scopes** (`read`, `write`) | **done** — tokens are read-only unless granted `write`; a read token gets 403 |
 | 2.7 | Audit mutations with their arguments | **done** — action, target and args, on success and failure |
 
@@ -78,7 +78,7 @@ Uncontested ground. Phase 0 buys the audience for this.
 
 | # | Task | Why it matters |
 |---|---|---|
-| 3.1 | **Publish the MCP server** to the MCP registry and Smithery | **npm done** (`@nats-trail/mcp`). Registry and Smithery listings still open — they need account access |
+| 3.1 | **Publish the MCP server** to the MCP registry | **prepared** — `packages/mcp/server.json` and the `mcpName` verification field are in place and version-synced on every release. The final `mcp-publisher login github && mcp-publisher publish` needs the GitHub account, see `docs/mcp-agent.md` |
 | 3.2 | **Subject and schema discovery tool** | **done** — `natstrail.discover_subjects`: real subjects with counts, plus inferred field paths, types, presence and examples |
 | 3.3 | **Flow reconstruction** | **done** — `natstrail.reconstruct_flow` plus a `Trace` tab that renders the chain and highlights the failing step |
 | 3.4 | **Health summary tool** | **done** — `natstrail.get_health_summary`, ranked critical-first, with a "What is broken?" button in the UI |

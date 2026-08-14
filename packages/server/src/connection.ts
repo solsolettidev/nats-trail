@@ -361,6 +361,43 @@ class ManagedConnection {
     return kv.put(key, encoded);
   }
 
+  /**
+   * Store an object from a string payload.
+   *
+   * Deliberately not a streaming upload: the bridge is a debugging tool, and
+   * accepting arbitrary-size bodies through it would make it a file transfer
+   * service with the memory profile of one.
+   */
+  async objectPut(bucket: string, name: string, value: string, description?: string): Promise<ObjectEntry> {
+    if (!this.nc || this.state.status !== "connected") throw new Error("Not connected to NATS");
+    const os = await this.nc.jetstream().views.os(bucket);
+    const data = new TextEncoder().encode(value);
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(data);
+        controller.close();
+      },
+    });
+    const info = await os.put({ name, description }, stream);
+    return {
+      bucket,
+      name: info.name,
+      description: info.description ?? "",
+      size: info.size,
+      chunks: info.chunks,
+      digest: info.digest,
+      deleted: info.deleted,
+      timestamp: Date.parse(info.mtime) || 0,
+    };
+  }
+
+  /** Delete an object. Its chunks go; a metadata tombstone remains. */
+  async objectDelete(bucket: string, name: string): Promise<void> {
+    if (!this.nc || this.state.status !== "connected") throw new Error("Not connected to NATS");
+    const os = await this.nc.jetstream().views.os(bucket);
+    await os.delete(name);
+  }
+
   /** Delete a key, leaving a `DEL` tombstone its history can show. */
   async kvDelete(bucket: string, key: string): Promise<void> {
     const kv = await this.requireKv(bucket);
@@ -784,6 +821,14 @@ class ConnectionPool {
 
   kvPut(contextId: string, bucket: string, key: string, value: string, expectedRevision?: number): Promise<number> {
     return this.require(contextId).kvPut(bucket, key, value, expectedRevision);
+  }
+
+  objectPut(contextId: string, bucket: string, name: string, value: string, description?: string): Promise<ObjectEntry> {
+    return this.require(contextId).objectPut(bucket, name, value, description);
+  }
+
+  objectDelete(contextId: string, bucket: string, name: string): Promise<void> {
+    return this.require(contextId).objectDelete(bucket, name);
   }
 
   kvDelete(contextId: string, bucket: string, key: string): Promise<void> {
