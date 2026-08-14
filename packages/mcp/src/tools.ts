@@ -65,6 +65,8 @@ export const mcpTools: McpToolDefinition[] = [
   tool("natstrail.get_kv_history", "Get the revision history of one KV key, including deletes.", { contextId: { type: "string" }, bucket: { type: "string" }, key: { type: "string" }, limit: limitProperty }, ["contextId", "bucket", "key", "limit"], SCAN_TIMEOUT_MS),
   tool("natstrail.list_object_buckets", "List JetStream Object Store buckets.", { contextId: { type: "string" }, limit: limitProperty }),
   tool("natstrail.list_objects", "List object metadata in an Object Store bucket.", { contextId: { type: "string" }, bucket: { type: "string" }, limit: limitProperty }, ["contextId", "bucket", "limit"], SCAN_TIMEOUT_MS),
+  tool("natstrail.get_server_health", "Server version, uptime, traffic, memory and JetStream totals.", { contextId: { type: "string" }, limit: limitProperty }),
+  tool("natstrail.list_server_connections", "List client connections with traffic and idle time.", { contextId: { type: "string" }, limit: limitProperty }),
 ];
 
 export function validateToolInput(name: string, input: Record<string, unknown>): ToolInputError[] {

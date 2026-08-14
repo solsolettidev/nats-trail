@@ -62,6 +62,8 @@ const LIVE_TOOLS = new Set([
   "natstrail.get_kv_history",
   "natstrail.list_object_buckets",
   "natstrail.list_objects",
+  "natstrail.get_server_health",
+  "natstrail.list_server_connections",
 ]);
 
 main(process.argv.slice(2)).catch((err: unknown) => fail(err instanceof Error ? err.message : String(err)));
@@ -224,6 +226,16 @@ async function runCommand(args: string[]): Promise<void> {
 
   if (command[0] === "obj" && command[1] === "objects") {
     await runMcpTool("natstrail.list_objects", command.slice(2), output);
+    return;
+  }
+
+  if (command[0] === "server" && command[1] === "health") {
+    await runMcpTool("natstrail.get_server_health", command.slice(2), output);
+    return;
+  }
+
+  if (command[0] === "server" && command[1] === "connections") {
+    await runMcpTool("natstrail.list_server_connections", command.slice(2), output);
     return;
   }
 
@@ -754,6 +766,8 @@ Commands:
   kv history                 Revision history for one key (--bucket --key)
   obj list                   List Object Store buckets
   obj objects                List objects in a bucket (--bucket)
+  server health              Server version, uptime, traffic and JetStream totals
+  server connections         List client connections
   dlq search                 Search dead-letter messages
   sentry enrich              Collect trace and DLQ context for Sentry
 

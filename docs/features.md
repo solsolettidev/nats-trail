@@ -120,3 +120,16 @@ CLI only — the MCP runtime stays read-only by construction.
   without ever streaming a payload through the bridge.
 - Exposed on all three surfaces: `/api/obj`, `nats-trail obj list|objects`, and the read-only
   tools `natstrail.list_object_buckets` and `natstrail.list_objects`.
+
+## Server health
+
+- Reads the NATS HTTP monitoring port (`varz`, `jsz`, `connz`), which is a different endpoint from
+  the client connection — so it reports clearly when monitoring is unreachable while NATS itself
+  works, instead of implying the server is down.
+- Version, uptime, connections, subscriptions, traffic, memory, CPU, routes and leaf nodes.
+- JetStream totals: streams, consumers, messages, bytes, memory and file store.
+- Client connection list with language, subscriptions, traffic, RTT and idle time.
+- The monitoring URL defaults to the connection host on port 8222; override it per context with
+  `monitorUrl`.
+- Exposed as `/api/server/health` and `/api/server/connections`, `nats-trail server health|connections`,
+  and the tools `natstrail.get_server_health` and `natstrail.list_server_connections`.

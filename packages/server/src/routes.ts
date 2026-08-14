@@ -9,6 +9,7 @@ import {
 } from "@nats-trail/core";
 import { executeMcpTool, mcpTools } from "@nats-trail/mcp";
 import { connectionPool } from "./connection.js";
+import { fetchServerConnections, fetchServerHealth } from "./monitoring.js";
 import { authEnabled, authenticate } from "./auth.js";
 import {
   loadContexts,
@@ -249,6 +250,30 @@ router.get("/obj/:bucket/objects", async (req, res) => {
   }
 });
 
+router.get("/server/health", async (req, res) => {
+  try {
+    res.json(await fetchServerHealth(requireContext(requestContextId(req))));
+  } catch (err) {
+    res.status(409).json({ error: normalizeError(err) });
+  }
+});
+
+router.get("/server/connections", async (req, res) => {
+  try {
+    const limit = Number(req.query.limit) || 100;
+    res.json(await fetchServerConnections(requireContext(requestContextId(req)), limit));
+  } catch (err) {
+    res.status(409).json({ error: normalizeError(err) });
+  }
+});
+
+/** Look up a stored context by id, for endpoints that read its monitoring URL. */
+function requireContext(contextId: string): Context {
+  const ctx = loadContexts().find((item) => item.id === contextId);
+  if (!ctx) throw new Error(`Unknown context: ${contextId || "no context"}`);
+  return ctx;
+}
+
 function selectedContextId(): string | null {
   return loadPreferences().selectedContextId;
 }
@@ -286,6 +311,8 @@ function executeIntegrationTool(name: string, input: Record<string, unknown>) {
     kvHistory: (bucket, key, limit) => connectionPool.kvHistory(target, bucket, key, limit),
     listObjectBuckets: () => connectionPool.listObjectBuckets(target),
     listObjects: (bucket, limit) => connectionPool.listObjects(target, bucket, limit),
+    serverHealth: () => fetchServerHealth(requireContext(target)),
+    serverConnections: (max) => fetchServerConnections(requireContext(target), max),
   });
 }
 

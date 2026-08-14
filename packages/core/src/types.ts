@@ -26,6 +26,12 @@ export interface Context {
   name: string;
   environment: Environment;
   url: string;
+  /**
+   * HTTP monitoring endpoint. Defaults to the connection host on port 8222,
+   * which is the NATS convention; set it when the server publishes monitoring
+   * somewhere else.
+   */
+  monitorUrl?: string;
   auth: ContextAuth;
   tls: ContextTLS;
 }
@@ -150,6 +156,58 @@ export interface ObjectEntry {
   digest: string;
   deleted: boolean;
   timestamp: number;
+}
+
+/** Server health, read from the NATS HTTP monitoring port (`varz` + `jsz`). */
+export interface ServerHealth {
+  serverId: string;
+  serverName: string;
+  version: string;
+  /** Uptime exactly as the server formats it, e.g. `"1h43m21s"`. */
+  uptime: string;
+  host: string;
+  port: number;
+  connections: number;
+  totalConnections: number;
+  subscriptions: number;
+  inMsgs: number;
+  outMsgs: number;
+  inBytes: number;
+  outBytes: number;
+  slowConsumers: number;
+  memory: number;
+  cpu: number;
+  routes: number;
+  leafNodes: number;
+  /** Null when JetStream is disabled on the server. */
+  jetstream: {
+    streams: number;
+    consumers: number;
+    messages: number;
+    bytes: number;
+    memory: number;
+    storage: number;
+  } | null;
+}
+
+/** One client connection, as reported by `connz`. */
+export interface ServerConnection {
+  cid: number;
+  kind: string;
+  type: string;
+  ip: string;
+  port: number;
+  name: string;
+  language: string;
+  version: string;
+  /** Round-trip time as the server formats it, e.g. `"1.2ms"`. */
+  rtt: string;
+  uptime: string;
+  idle: string;
+  subscriptions: number;
+  inMsgs: number;
+  outMsgs: number;
+  pendingBytes: number;
 }
 
 export interface Consumer {

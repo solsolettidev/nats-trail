@@ -2,6 +2,24 @@ import type { Context, Environment, NormalizedError } from "./types.js";
 
 const ENVIRONMENTS: Environment[] = ["local", "dev", "staging", "prod", "custom"];
 
+/** Default HTTP monitoring port when a context does not configure one. */
+const DEFAULT_MONITOR_PORT = 8222;
+
+/**
+ * Resolve the HTTP monitoring endpoint for a context: the explicit
+ * `monitorUrl` when set, otherwise the connection host on the conventional
+ * monitoring port. Returns null when the URL cannot be parsed.
+ */
+export function monitoringUrl(ctx: Pick<Context, "url" | "monitorUrl">): string | null {
+  if (ctx.monitorUrl?.trim()) return ctx.monitorUrl.trim().replace(/\/+$/, "");
+  // Parsed by hand rather than with `URL`: core deliberately compiles without
+  // DOM or Node lib types, and only the scheme and host are needed here.
+  const match = /^(nats|tls|ws|wss):\/\/(?:[^@/]*@)?(\[[^\]]+\]|[^:/?#]+)/.exec(ctx.url.trim());
+  if (!match) return null;
+  const secure = match[1] === "tls" || match[1] === "wss";
+  return `${secure ? "https" : "http"}://${match[2]}:${DEFAULT_MONITOR_PORT}`;
+}
+
 /** Validate a context before it is saved or used to connect. Returns errors, empty if valid. */
 export function validateContext(ctx: Partial<Context>): NormalizedError[] {
   const errors: NormalizedError[] = [];

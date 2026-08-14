@@ -7,10 +7,11 @@ import { JetStreamPanel } from "./components/JetStreamPanel.js";
 import { KvPanel } from "./components/KvPanel.js";
 import { ObjectPanel } from "./components/ObjectPanel.js";
 import { DlqPanel } from "./components/DlqPanel.js";
+import { ServerPanel } from "./components/ServerPanel.js";
 import { Loading, ErrorState } from "./components/states.js";
 import { Icon } from "./components/ui.js";
 
-type Tab = "core" | "jetstream" | "kv" | "obj" | "dlq";
+type Tab = "core" | "jetstream" | "kv" | "obj" | "dlq" | "server";
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: "core", label: "NATS Core", icon: "broadcast" },
@@ -18,6 +19,7 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: "kv", label: "KV Store", icon: "key" },
   { id: "obj", label: "Objects", icon: "archive" },
   { id: "dlq", label: "DLQ", icon: "skull" },
+  { id: "server", label: "Server", icon: "pulse" },
 ];
 
 function BrandMark() {
@@ -189,6 +191,7 @@ export function App() {
             {tab === "kv" && <KvPanel connected={connected} />}
             {tab === "obj" && <ObjectPanel connected={connected} />}
             {tab === "dlq" && <DlqPanel connected={connected} />}
+            {tab === "server" && <ServerPanel connected={connected} />}
           </div>
         </main>
       </div>

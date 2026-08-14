@@ -780,3 +780,18 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: var(--fs-13); }
 
 /* KV values: keep long JSON on one line, elided rather than wrapping the row */
 .kv-value { font-family: var(--font-mono); font-size: var(--fs-sm); color: var(--text); }
+
+/* Server health stat grid */
+.stats {
+  display: grid; gap: var(--sp-2);
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  padding: var(--sp-1) 0 var(--sp-2);
+}
+.stat {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-lg); padding: var(--sp-2) var(--sp-25);
+}
+.stat__label { color: var(--faint); font-size: var(--fs-2xs); font-family: var(--font-mono);
+  text-transform: uppercase; letter-spacing: 0.06em; }
+.stat__value { color: var(--text); font-size: var(--fs-xl); font-weight: 500; line-height: 1.2; margin-top: 2px; }
+.stat__hint { color: var(--muted); font-size: var(--fs-xs); font-family: var(--font-mono); margin-top: 2px; }

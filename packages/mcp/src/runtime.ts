@@ -25,6 +25,8 @@ import {
   type KvEntry,
   type ObjectBucket,
   type ObjectEntry,
+  type ServerConnection,
+  type ServerHealth,
 } from "@nats-trail/core";
 import { mcpTools, validateToolInput } from "./tools.js";
 
@@ -45,6 +47,8 @@ export interface McpRuntimeData {
   kvHistory?: (bucket: string, key: string, limit: number) => Promise<KvEntry[]>;
   listObjectBuckets?: () => Promise<ObjectBucket[]>;
   listObjects?: (bucket: string, limit: number) => Promise<ObjectEntry[]>;
+  serverHealth?: () => Promise<ServerHealth>;
+  serverConnections?: (limit: number) => Promise<ServerConnection[]>;
 }
 
 /** Page size used when a tool scans a stream window incrementally. */
@@ -362,6 +366,28 @@ async function executeMcpToolInner(name: string, input: Record<string, unknown>,
     if (!bucket) return inputError(name, limit, "bucket is required");
     try {
       return createQueryEnvelope({ query: { tool: name, contextId: input.contextId, bucket }, results: await data.listObjects(bucket, limit), limit });
+    } catch (err) {
+      return toolError(name, limit, err);
+    }
+  }
+
+  if (name === "natstrail.get_server_health") {
+    const error = validateConnectedContext(name, input, data);
+    if (error) return error;
+    if (!data.serverHealth) return notImplemented(name, limit);
+    try {
+      return createQueryEnvelope({ query: { tool: name, contextId: input.contextId }, results: [await data.serverHealth()], limit });
+    } catch (err) {
+      return toolError(name, limit, err);
+    }
+  }
+
+  if (name === "natstrail.list_server_connections") {
+    const error = validateConnectedContext(name, input, data);
+    if (error) return error;
+    if (!data.serverConnections) return notImplemented(name, limit);
+    try {
+      return createQueryEnvelope({ query: { tool: name, contextId: input.contextId }, results: await data.serverConnections(limit), limit });
     } catch (err) {
       return toolError(name, limit, err);
     }
