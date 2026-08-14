@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, type Flow, type FlowStep, type HealthFinding } from "../api.js";
 import { Loading, Empty, ErrorState } from "./states.js";
 import { Badge, Icon, fmtInt, fmtTime } from "./ui.js";
@@ -43,9 +43,21 @@ function Findings({ findings }: { findings: HealthFinding[] }) {
   );
 }
 
+/** `?requestId=` / `?correlationId=` from an enrichment deep link. */
+function idFromUrl(): { id: string; kind: "request" | "correlation" } | null {
+  const params = new URLSearchParams(window.location.search);
+  const requestId = params.get("requestId");
+  if (requestId) return { id: requestId, kind: "request" };
+  const correlationId = params.get("correlationId");
+  if (correlationId) return { id: correlationId, kind: "correlation" };
+  return null;
+}
+
 export function TracePanel({ connected }: { connected: boolean }) {
-  const [id, setId] = useState("");
-  const [kind, setKind] = useState<"request" | "correlation">("request");
+  // Read once: the query string does not change while the panel is mounted.
+  const deepLink = useRef(idFromUrl()).current;
+  const [id, setId] = useState(deepLink?.id ?? "");
+  const [kind, setKind] = useState<"request" | "correlation">(deepLink?.kind ?? "request");
   const [flow, setFlow] = useState<Flow | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -69,6 +81,16 @@ export function TracePanel({ connected }: { connected: boolean }) {
       setBusy(false);
     }
   };
+
+  // Run a deep-linked trace once, as soon as there is a connection to run it
+  // against. The ref matters: without it a reconnect would re-run the link over
+  // whatever the user had since typed.
+  const autoRan = useRef(false);
+  useEffect(() => {
+    if (!connected || autoRan.current || !deepLink) return;
+    autoRan.current = true;
+    void run();
+  }, [connected]);
 
   const loadFindings = async () => {
     setLoadingFindings(true);

@@ -60,7 +60,7 @@ NATS Trail treats the agent surface as a **contract**, not a wrapper:
 | Message shape | subject, timestamp, stream/seq, truncation flag, extracted `request_id` / `correlation_id` | Raw payload dump |
 | Errors | Structured envelope with `code` and `retriable` | Stack traces or plain strings |
 | Writes | **Unreachable from the agent runtime** | `publish`, KV and object writes exposed |
-| Audit | Every call logged with origin and token identity | None |
+| Audit | Every call logged with origin and token identity; mutations with their arguments | None |
 
 ### "Read-only" here means unreachable, not disabled
 
@@ -149,13 +149,14 @@ Or wire it manually:
 }
 ```
 
-Twenty-four read-only tools, all returning the same envelope:
+Twenty-five read-only tools, all returning the same envelope:
 
 ```
 # start here when the topology is unknown
 natstrail.discover_subjects        subjects that carry traffic + inferred payload shapes
 natstrail.get_health_summary       what is broken right now, ranked
 natstrail.reconstruct_flow         the causal chain for one request_id
+natstrail.enrich_incident          flat context for an incident: flow + dead letters + health
 
 # messages
 natstrail.search_messages          natstrail.get_message_detail
@@ -254,12 +255,17 @@ authenticated token name per call.
 
 Tracked in [`docs/roadmap.md`](docs/roadmap.md).
 
-**Shipped** — npm release · KV and Object Store browsing · server health · binary payload
-handling · subject discovery · flow reconstruction · health summary · human-only write operations
-with scoped tokens and audited mutations.
+**Phases 0–2 are complete.** npm release · KV and Object Store browsing · server health · binary
+payload handling · nkey auth · subject discovery · flow reconstruction · health summary · incident
+enrichment for Sentry, Grafana and Datadog · stream, consumer and KV administration — all writes
+human-only, behind scoped tokens and audited with their arguments.
 
-**Next** — protobuf and msgpack *field* decoding (needs a schema registry) · stream and consumer
-creation · KV writes · MCP registry and Smithery listings · Grafana and Datadog enrichment.
+**Next** — MCP registry and Smithery listings · Object Store writes · stream backup and restore ·
+indexed search to remove the scan-budget ceiling.
+
+**Deliberately out** — protobuf and msgpack *field* decoding (needs a per-subject schema registry)
+and competing with [NUI](https://github.com/nats-nui/nui) on GUI breadth. See
+[`docs/roadmap.md`](docs/roadmap.md).
 
 **Soon** — for teams that explicitly want agent writes, a **separate opt-in binary**
 (`natstrail-mcp-write`) that has to be installed on purpose. Never a flag on the read-only server:

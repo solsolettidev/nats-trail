@@ -58,11 +58,19 @@ const EMPTY_CONN: ConnectionState = {
   reconnects: 0,
 };
 
+const TAB_IDS = TABS.map((t) => t.id);
+
+/** The tab named in `?tab=`, so an enrichment deep link opens where it says. */
+function tabFromUrl(): Tab {
+  const requested = new URLSearchParams(window.location.search).get("tab");
+  return (TAB_IDS as string[]).includes(requested ?? "") ? (requested as Tab) : "core";
+}
+
 export function App() {
   const [contexts, setContexts] = useState<Context[] | null>(null);
   const [connection, setConnection] = useState<ConnectionState>(EMPTY_CONN);
   const [lastSubject, setLastSubject] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>("core");
+  const [tab, setTab] = useState<Tab>(tabFromUrl);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
