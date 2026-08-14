@@ -7,7 +7,9 @@ export function subjectMatches(pattern: string, subject: string): boolean {
   const s = subject.split(".");
   for (let i = 0; i < p.length; i++) {
     const token = p[i];
-    if (token === ">") return true;
+    // The > wildcard matches one or more remaining tokens, never zero:
+    // the pattern orders.> must not match the bare subject orders.
+    if (token === ">") return s.length > i;
     if (i >= s.length) return false;
     if (token === "*") continue;
     if (token !== s[i]) return false;
