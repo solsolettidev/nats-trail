@@ -33,13 +33,13 @@ The gaps a NATS user notices in the first ten minutes.
 
 | # | Task | Why |
 |---|---|---|
-| 1.1 | **KV Store browsing**: buckets, entries, entry history | Largest functional hole. NUI, gnat and natscli all have it; KV carries config, locks and service state |
-| 1.2 | **Object Store browsing**: buckets, objects, metadata | Same gap, lower usage |
-| 1.3 | **Server and cluster health**: `varz`, `connz`, `jsz`, `routez` panel | Nearly free (HTTP monitoring port) and removes the "this tool cannot see the server" impression |
-| 1.4 | **Payload codecs**: protobuf (with descriptor), msgpack, hex fallback | A protobuf payload is currently unreadable. NUI decodes it |
-| 1.5 | **Request/reply** from the UI and CLI | A debugging primitive, not just a write. First write-path feature — see phase 2 |
-| 1.6 | Tests on the query engine, `matchFilter`, envelope limits and truncation | Currently zero. These are the parts an agent depends on being correct |
-| 1.7 | Bare nkey seed auth | `creds` covers most JWT setups; nkey alone does not |
+| 1.1 | **KV Store browsing**: buckets, entries, entry history | **done** — buckets, live keys, and per-key revision history including tombstones |
+| 1.2 | **Object Store browsing**: buckets, objects, metadata | **done** — object metadata only; payloads are never streamed through the bridge |
+| 1.3 | **Server and cluster health**: `varz`, `connz`, `jsz` panel | **done** — with a clear error when the monitoring port is unreachable but NATS is not |
+| 1.4 | **Payload codecs** | **partial** — binary detection, hex dump and base64 done; protobuf/msgpack *field* decoding still open (needs a schema registry or a dependency) |
+| 1.5 | **Request/reply** from the UI and CLI | **done** — shipped with the phase 2 write surface |
+| 1.6 | Tests on the query engine, `matchFilter`, envelope limits and truncation | **done** — 67 tests, including guardrails on the write boundary. Found and fixed a real `>` wildcard bug |
+| 1.7 | Bare nkey seed auth | **open** — `creds` covers most JWT setups |
 
 ## Phase 2 — Writes, on the human side only
 
@@ -48,13 +48,13 @@ none of it reaches the MCP runtime.
 
 | # | Task | Guard |
 |---|---|---|
-| 2.1 | Publish to a subject | Typed confirmation on non-local contexts |
-| 2.2 | Purge stream, delete message | Typed confirmation, always audited |
-| 2.3 | Consumer create / edit / delete | Typed confirmation |
-| 2.4 | Stream create / edit / delete, backup and restore | Typed confirmation |
-| 2.5 | KV and Object Store writes | Typed confirmation |
-| 2.6 | **Token scopes** (`read`, `write`) on the Integration API | Writes require a token explicitly created with `write`; default stays `read` |
-| 2.7 | Extend audit entries with the mutation performed and its arguments | Writes must be reconstructable after the fact |
+| 2.1 | Publish to a subject | **done** — typed environment confirmation on non-local contexts |
+| 2.2 | Purge stream, delete message | **done** — confirmation dialog in the UI, `--yes` in the CLI, always audited |
+| 2.3 | Consumer delete | **done**. Create/edit still open |
+| 2.4 | Stream delete | **done** — must name the stream back. Create/edit/backup/restore still open |
+| 2.5 | KV and Object Store writes | **open** |
+| 2.6 | **Token scopes** (`read`, `write`) | **done** — tokens are read-only unless granted `write`; a read token gets 403 |
+| 2.7 | Audit mutations with their arguments | **done** — action, target and args, on success and failure |
 
 ### Write boundary
 
@@ -78,12 +78,12 @@ Uncontested ground. Phase 0 buys the audience for this.
 
 | # | Task | Why it matters |
 |---|---|---|
-| 3.1 | **Publish the MCP server** to the MCP registry, npm and Smithery | The differentiator is currently invisible. Highest-return item in this phase |
-| 3.2 | **Subject and schema discovery tool** — "what subjects exist and what shape are their payloads" | Nobody has it. An agent cannot debug a topology it must be told about first |
-| 3.3 | **Flow reconstruction** — render a trace as its causal chain (`source.created → refresh.started → etl.failed → dlq`) | The events are already collected and ordered; this is the demo that sells the product |
-| 3.4 | **Health summary tool** — "what is broken right now": consumers with growing pending, DLQ rate spikes, redelivery counts | Turns the agent from a query runner into a diagnostician |
-| 3.5 | More integrations on the Sentry pattern: Grafana, Datadog, PagerDuty | Each one is an entry point from a tool teams already run |
-| 3.6 | Indexed search over stream history | Removes the `maxScan` ceiling. Large; only worth it once 3.1-3.4 have users |
+| 3.1 | **Publish the MCP server** to the MCP registry and Smithery | **npm done** (`@nats-trail/mcp`). Registry and Smithery listings still open — they need account access |
+| 3.2 | **Subject and schema discovery tool** | **done** — `natstrail.discover_subjects`: real subjects with counts, plus inferred field paths, types, presence and examples |
+| 3.3 | **Flow reconstruction** | **done** — `natstrail.reconstruct_flow` plus a `Trace` tab that renders the chain and highlights the failing step |
+| 3.4 | **Health summary tool** | **done** — `natstrail.get_health_summary`, ranked critical-first, with a "What is broken?" button in the UI |
+| 3.5 | More integrations on the Sentry pattern: Grafana, Datadog, PagerDuty | **open** |
+| 3.6 | Indexed search over stream history | **open** — large, and only worth it once there are users |
 
 ---
 

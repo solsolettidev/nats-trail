@@ -68,9 +68,14 @@ NATS Trail treats the agent surface as a **contract**, not a wrapper:
   <img src="docs/assets/boundary.svg" alt="The UI and CLI reach both read and write paths; the MCP runtime is wired only to the read path" width="880">
 </p>
 
+NATS Trail *can* write: publish, purge, delete messages, consumers and streams. Those live behind
+`/api/mutate`, reachable from the UI and the CLI.
+
 `executeMcpTool()` receives an `McpRuntimeData` interface that exposes only read functions. There is
 no disabled `publish` behind a feature flag — **there is no `publish` to call.** A misconfigured
-environment variable cannot purge your production stream, because the code path does not exist.
+environment variable cannot purge your production stream, because the code path does not exist. CLI
+write commands additionally refuse to run under `--agent`, and the test suite reads the source to
+assert none of this has been quietly undone.
 
 This is the only reason it is reasonable to hand an agent a `prod` context.
 
@@ -144,16 +149,30 @@ Or wire it manually:
 }
 ```
 
-Fourteen read-only tools, all returning the same envelope:
+Twenty-four read-only tools, all returning the same envelope:
 
 ```
-natstrail.list_contexts          natstrail.search_messages
-natstrail.get_connection_status  natstrail.get_message_detail
-natstrail.list_streams           natstrail.trace_by_request_id
-natstrail.get_stream_info        natstrail.trace_by_correlation_id
-natstrail.list_consumers         natstrail.search_dlq
-natstrail.list_filters           natstrail.enrich_sentry
-natstrail.run_filter             natstrail.list_audit
+# start here when the topology is unknown
+natstrail.discover_subjects        subjects that carry traffic + inferred payload shapes
+natstrail.get_health_summary       what is broken right now, ranked
+natstrail.reconstruct_flow         the causal chain for one request_id
+
+# messages
+natstrail.search_messages          natstrail.get_message_detail
+natstrail.trace_by_request_id      natstrail.trace_by_correlation_id
+natstrail.search_dlq               natstrail.run_filter
+
+# topology
+natstrail.list_streams             natstrail.get_stream_info
+natstrail.list_consumers           natstrail.list_kv_buckets
+natstrail.list_kv_keys             natstrail.get_kv_history
+natstrail.list_object_buckets      natstrail.list_objects
+
+# operations
+natstrail.get_server_health        natstrail.list_server_connections
+natstrail.list_contexts            natstrail.get_connection_status
+natstrail.list_filters             natstrail.list_audit
+natstrail.enrich_sentry
 ```
 
 See [`docs/mcp-agent.md`](docs/mcp-agent.md).
@@ -198,8 +217,18 @@ browsing, auto-detected DLQ panel.
 </tr>
 </table>
 
+**Understand** — subject discovery infers payload shapes from real traffic, flow reconstruction
+turns one `request_id` into a causal chain, and the health summary ranks what is actually broken.
+
 **Query** — bounded stream scans with cursors and time windows, filters by subject, date, text and
-JSON event type, saved filters shared across all three surfaces.
+JSON event type, saved filters shared across all three surfaces. Binary payloads (protobuf, msgpack)
+are detected and shown as hex dumps rather than mojibake.
+
+**Browse** — KV buckets with per-key revision history including deletes, Object Store metadata, and
+server health from the monitoring port (`varz` / `jsz` / `connz`).
+
+**Change** — publish, request/reply, purge, and delete messages, consumers and streams, from the UI
+and the CLI, behind confirmation. Never from the agent surface.
 
 **Integrate** — read-only HTTP API under `/api/integration`, bearer tokens with per-token audit
 identity, and `POST /api/integration/enrich/sentry` to attach NATS context to an error without
@@ -225,11 +254,12 @@ authenticated token name per call.
 
 Tracked in [`docs/roadmap.md`](docs/roadmap.md).
 
-**Next** — npm release · KV and Object Store browsing · server and cluster health
-(`varz` / `connz` / `jsz`) · protobuf and msgpack decoding.
+**Shipped** — npm release · KV and Object Store browsing · server health · binary payload
+handling · subject discovery · flow reconstruction · health summary · human-only write operations
+with scoped tokens and audited mutations.
 
-**Then** — write operations (publish, purge, delete, consumer and stream management) for the UI and
-the CLI, behind scoped tokens on the HTTP API. The MCP runtime does not gain them.
+**Next** — protobuf and msgpack *field* decoding (needs a schema registry) · stream and consumer
+creation · KV writes · MCP registry and Smithery listings · Grafana and Datadog enrichment.
 
 **Soon** — for teams that explicitly want agent writes, a **separate opt-in binary**
 (`natstrail-mcp-write`) that has to be installed on purpose. Never a flag on the read-only server:
