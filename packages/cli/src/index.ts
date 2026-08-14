@@ -44,7 +44,7 @@ const DEFAULT_PREFS: Preferences = {
   messageViewerMode: "tree",
 };
 
-const NUMERIC_FLAGS = new Set(["limit", "seq", "timeoutMs", "fromTs", "toTs", "maxScan", "port", "keep"]);
+const NUMERIC_FLAGS = new Set(["limit", "seq", "timeoutMs", "fromTs", "toTs", "maxScan", "port", "keep", "expectedRevision"]);
 
 /** Flags that are switches rather than key/value pairs. */
 const BOOLEAN_FLAGS = new Set(["yes", "noAutoConnect"]);
@@ -260,6 +260,16 @@ async function runCommand(args: string[]): Promise<void> {
 
   if (command[0] === "request") {
     await requestReply(command.slice(1));
+    return;
+  }
+
+  if (command[0] === "kv" && command[1] === "put") {
+    await kvPut(command.slice(2), output);
+    return;
+  }
+
+  if (command[0] === "kv" && (command[1] === "delete" || command[1] === "purge")) {
+    await kvRemove(command[1], command.slice(2), output);
     return;
   }
 
@@ -837,6 +847,37 @@ async function requestReply(args: string[]): Promise<void> {
   printJson(reply);
 }
 
+async function kvPut(args: string[], output: Output): Promise<void> {
+  requireHumanInvocation("kv put");
+  const input = readNamedArgs(args);
+  const bucket = stringValue(input.bucket);
+  const key = stringValue(input.key);
+  const value = stringValue(input.value);
+  if (!bucket || !key || value === undefined) {
+    fail("Usage: nats-trail kv put --bucket <name> --key <key> --value <json-or-text> [--expected-revision <n>]");
+  }
+  const result = await bridgeRequest<{ revision: number }>(
+    `/mutate/kv/${encodeURIComponent(bucket)}/keys/${encodeURIComponent(key)}`,
+    { method: "PUT", body: JSON.stringify({ value, expectedRevision: numberValue(input.expectedRevision) }) },
+  );
+  if (output === "json" || output === "ndjson") printJson(result);
+  else console.log(`${bucket}/${key} is now revision ${result.revision}`);
+}
+
+async function kvRemove(mode: "delete" | "purge", args: string[], output: Output): Promise<void> {
+  requireHumanInvocation(`kv ${mode}`);
+  const input = readNamedArgs(args);
+  const bucket = stringValue(input.bucket);
+  const key = stringValue(input.key);
+  if (!bucket || !key) fail(`Usage: nats-trail kv ${mode} --bucket <name> --key <key> --yes`);
+  requireConfirmation(`kv ${mode}`, `${bucket}/${key}`, input);
+  await bridgeRequest(
+    `/mutate/kv/${encodeURIComponent(bucket)}/keys/${encodeURIComponent(key)}?purge=${mode === "purge"}`,
+    { method: "DELETE" },
+  );
+  if (output === "text") console.log(`${mode}d ${bucket}/${key}`);
+}
+
 async function purgeStream(args: string[], output: Output): Promise<void> {
   requireHumanInvocation("purge");
   const input = readNamedArgs(args);
@@ -934,6 +975,9 @@ Commands:
 Write commands (human and scripts only, never --agent):
   publish                    Publish to a subject (--subject --payload)
   request                    Request/reply on a subject (--subject --payload)
+  kv put                     Set a key (--bucket --key --value [--expected-revision])
+  kv delete                  Delete a key, keeping its history (--bucket --key) --yes
+  kv purge                   Purge a key and its history (--bucket --key) --yes
   purge                      Purge a stream (--stream [--subject] [--keep]) --yes
   delete message             Delete one message (--stream --seq) --yes
   delete consumer            Delete a consumer (--stream --consumer) --yes

@@ -331,6 +331,33 @@ class ManagedConnection {
     });
   }
 
+  /**
+   * Set a key. Returns the new revision.
+   *
+   * Optimistic concurrency: pass `expectedRevision` to fail rather than clobber
+   * a value that changed since it was read.
+   */
+  async kvPut(bucket: string, key: string, value: string, expectedRevision?: number): Promise<number> {
+    const kv = await this.requireKv(bucket);
+    const encoded = new TextEncoder().encode(value);
+    if (expectedRevision != null) {
+      return kv.update(key, encoded, expectedRevision);
+    }
+    return kv.put(key, encoded);
+  }
+
+  /** Delete a key, leaving a `DEL` tombstone its history can show. */
+  async kvDelete(bucket: string, key: string): Promise<void> {
+    const kv = await this.requireKv(bucket);
+    await kv.delete(key);
+  }
+
+  /** Purge a key, discarding its history entirely. */
+  async kvPurge(bucket: string, key: string): Promise<void> {
+    const kv = await this.requireKv(bucket);
+    await kv.purge(key);
+  }
+
   /** Purge a stream, optionally limited to one subject or keeping N messages. */
   async purgeStream(stream: string, opts: { subject?: string; keep?: number }): Promise<number> {
     const jsm = await this.requireJsm();
@@ -637,6 +664,18 @@ class ConnectionPool {
 
   request(contextId: string, subject: string, payload: string, timeoutMs: number): Promise<Message> {
     return this.require(contextId).request(subject, payload, timeoutMs);
+  }
+
+  kvPut(contextId: string, bucket: string, key: string, value: string, expectedRevision?: number): Promise<number> {
+    return this.require(contextId).kvPut(bucket, key, value, expectedRevision);
+  }
+
+  kvDelete(contextId: string, bucket: string, key: string): Promise<void> {
+    return this.require(contextId).kvDelete(bucket, key);
+  }
+
+  kvPurge(contextId: string, bucket: string, key: string): Promise<void> {
+    return this.require(contextId).kvPurge(bucket, key);
   }
 
   purgeStream(contextId: string, stream: string, opts: { subject?: string; keep?: number }): Promise<number> {

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, type KvBucket, type KvEntry } from "../api.js";
 import { Loading, Empty, ErrorState } from "./states.js";
+import { ConfirmAction } from "./ConfirmAction.js";
 import { Badge, Icon, fmtBytes, fmtInt, fmtRelative } from "./ui.js";
 
 /** Per-key TTL is reported in nanoseconds; 0 means unset. */
@@ -37,6 +38,9 @@ export function KvPanel({ connected }: { connected: boolean }) {
   const [historyKey, setHistoryKey] = useState<string | null>(null);
   const [history, setHistory] = useState<KvEntry[] | null>(null);
   const [query, setQuery] = useState("");
+  const [editing, setEditing] = useState<{ key: string; value: string; revision: number } | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [pending, setPending] = useState<{ label: string; detail: string; run: () => Promise<unknown> } | null>(null);
 
   const load = () => {
     setError(null);
@@ -60,6 +64,24 @@ export function KvPanel({ connected }: { connected: boolean }) {
     setHistoryKey(null);
     setHistory(null);
     api.listKvKeys(bucket).then(setEntries).catch((e) => setError(e.message));
+  };
+
+  const reload = () => selected && openBucket(selected);
+
+  /**
+   * Save an edited value, passing the revision it was read at so a concurrent
+   * change is refused rather than silently overwritten.
+   */
+  const save = async () => {
+    if (!selected || !editing) return;
+    setSaveError(null);
+    try {
+      await api.kvPut(selected, editing.key, editing.value, editing.revision);
+      setEditing(null);
+      reload();
+    } catch (e) {
+      setSaveError((e as Error).message);
+    }
   };
 
   const openHistory = (key: string) => {
@@ -193,13 +215,36 @@ export function KvPanel({ connected }: { connected: boolean }) {
                       </td>
                       <td className="num num--muted">{e.revision}</td>
                       <td className="num--muted">{fmtRelative(e.timestamp)}</td>
-                      <td>
+                      <td className="rowactions">
                         <button
                           className="btn btn--sm btn--ghost"
                           title="Revision history"
                           onClick={() => openHistory(e.key)}
                         >
                           <Icon name="clock-counter-clockwise" /> History
+                        </button>
+                        <button
+                          className="btn btn--sm btn--ghost"
+                          title="Edit value"
+                          onClick={() => {
+                            setSaveError(null);
+                            setEditing({ key: e.key, value: e.value, revision: e.revision });
+                          }}
+                        >
+                          <Icon name="pencil-simple" />
+                        </button>
+                        <button
+                          className="btn btn--sm btn--ghost btn--danger"
+                          title="Delete key (history is kept)"
+                          onClick={() =>
+                            setPending({
+                              label: `Delete ${e.key}`,
+                              detail: `Removes ${e.key} from ${selected}. A DEL tombstone stays in its history, so the deletion remains explainable.`,
+                              run: () => api.kvDelete(selected!, e.key).then(reload),
+                            })
+                          }
+                        >
+                          <Icon name="trash" />
                         </button>
                       </td>
                     </tr>
@@ -209,6 +254,46 @@ export function KvPanel({ connected }: { connected: boolean }) {
             </div>
           )}
         </>
+      )}
+
+      {editing && (
+        <div className="confirm" role="dialog" aria-label={`Edit ${editing.key}`}>
+          <div className="confirm__box" style={{ borderColor: "var(--border-strong)", width: "min(620px, calc(100vw - 32px))" }}>
+            <div className="confirm__head" style={{ color: "var(--text)" }}>
+              <Icon name="pencil-simple" weight="duotone" />
+              <b>{editing.key}</b>
+              <span className="dim">· revision {editing.revision}</span>
+            </div>
+            <textarea
+              className="input publisher__payload"
+              autoFocus
+              spellCheck={false}
+              value={editing.value}
+              onChange={(ev) => setEditing({ ...editing, value: ev.target.value })}
+            />
+            {saveError && <ErrorState message={saveError} />}
+            <div className="confirm__actions">
+              <button className="btn btn--sm btn--ghost" onClick={() => setEditing(null)}>
+                Cancel
+              </button>
+              <button className="btn btn--sm" onClick={save}>
+                <Icon name="check" /> Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pending && (
+        <ConfirmAction
+          label={pending.label}
+          detail={pending.detail}
+          onCancel={() => setPending(null)}
+          onConfirm={async () => {
+            await pending.run();
+            setPending(null);
+          }}
+        />
       )}
 
       {historyKey && (

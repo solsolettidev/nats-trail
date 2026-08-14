@@ -123,6 +123,18 @@ export const api = {
       body: JSON.stringify({ confirm: stream }),
     }),
 
+  /** Pass `expectedRevision` to refuse to clobber a value that changed since it was read. */
+  kvPut: (bucket: string, key: string, value: string, expectedRevision?: number) =>
+    req<{ revision: number }>(`/mutate/kv/${encodeURIComponent(bucket)}/keys/${encodeURIComponent(key)}`, {
+      method: "PUT",
+      body: JSON.stringify({ value, expectedRevision }),
+    }),
+  kvDelete: (bucket: string, key: string, purge = false) =>
+    req<{ ok: boolean }>(
+      `/mutate/kv/${encodeURIComponent(bucket)}/keys/${encodeURIComponent(key)}?purge=${purge}`,
+      { method: "DELETE" },
+    ),
+
   serverHealth: () => req<ServerHealth>("/server/health"),
   serverConnections: () => req<ServerConnection[]>("/server/connections"),
 };

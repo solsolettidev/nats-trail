@@ -196,6 +196,9 @@ NATS Trail can now change state, on the human surfaces only.
 | Delete message | — | `nats-trail delete message` | `--yes` |
 | Delete consumer | Consumer row | `nats-trail delete consumer` | Confirmation dialog / `--yes` |
 | Delete stream | — | `nats-trail delete stream` | Must name the stream back via `--confirm` |
+| KV set | KV panel (edit) | `nats-trail kv put` | Optimistic concurrency via `--expected-revision` |
+| KV delete | KV row | `nats-trail kv delete` | Confirmation; leaves a `DEL` tombstone |
+| KV purge | — | `nats-trail kv purge` | Confirmation; discards the key history |
 
 ### How the agent stays locked out
 
@@ -226,3 +229,13 @@ action, target and arguments, success or failure, so a write can be reconstructe
   stripped by `sanitizeContext` like every other credential.
 - A context can override its HTTP monitoring endpoint with `monitorUrl` when the server does not
   publish monitoring on the conventional port 8222.
+
+### KV writes and concurrency
+
+`kv put` accepts `--expected-revision`. Passing the revision a value was read at turns the write
+into a compare-and-set: a concurrent change is refused with `wrong last sequence` instead of being
+silently overwritten. The UI's edit dialog always sends it, so editing a value someone else changed
+fails loudly.
+
+`delete` leaves a `DEL` tombstone the history can show — a value that disappeared stays
+explainable. `purge` discards the history, which is why it is CLI-only and needs `--yes`.

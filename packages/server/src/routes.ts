@@ -376,6 +376,41 @@ mutations.post("/request", async (req, res) => {
   }
 });
 
+mutations.put("/kv/:bucket/keys/:key", async (req, res) => {
+  const { value, expectedRevision } = req.body as { value?: string; expectedRevision?: number };
+  if (typeof value !== "string") return res.status(400).json({ error: normalizeError("value must be a string") });
+  const target = `${req.params.bucket}/${req.params.key}`;
+  try {
+    const revision = await connectionPool.kvPut(
+      requestContextId(req),
+      req.params.bucket,
+      req.params.key,
+      value,
+      Number.isFinite(Number(expectedRevision)) ? Number(expectedRevision) : undefined,
+    );
+    auditMutation(req, res, "kv.put", target, { bytes: value.length, expectedRevision, revision });
+    res.json({ ok: true, revision });
+  } catch (err) {
+    auditMutation(req, res, "kv.put", target, { expectedRevision }, 1);
+    res.status(409).json({ error: normalizeError(err) });
+  }
+});
+
+mutations.delete("/kv/:bucket/keys/:key", async (req, res) => {
+  // `purge` discards the key's history; `delete` leaves a readable tombstone.
+  const purge = req.query.purge === "true";
+  const target = `${req.params.bucket}/${req.params.key}`;
+  try {
+    if (purge) await connectionPool.kvPurge(requestContextId(req), req.params.bucket, req.params.key);
+    else await connectionPool.kvDelete(requestContextId(req), req.params.bucket, req.params.key);
+    auditMutation(req, res, purge ? "kv.purge" : "kv.delete", target, { purge });
+    res.json({ ok: true });
+  } catch (err) {
+    auditMutation(req, res, purge ? "kv.purge" : "kv.delete", target, { purge }, 1);
+    res.status(409).json({ error: normalizeError(err) });
+  }
+});
+
 mutations.post("/streams/:name/purge", async (req, res) => {
   const { subject, keep } = req.body as { subject?: string; keep?: number };
   try {
