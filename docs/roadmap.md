@@ -36,7 +36,7 @@ The gaps a NATS user notices in the first ten minutes.
 | 1.1 | **KV Store browsing**: buckets, entries, entry history | **done** — buckets, live keys, and per-key revision history including tombstones |
 | 1.2 | **Object Store browsing**: buckets, objects, metadata | **done** — object metadata only; payloads are never streamed through the bridge |
 | 1.3 | **Server and cluster health**: `varz`, `connz`, `jsz` panel | **done** — with a clear error when the monitoring port is unreachable but NATS is not |
-| 1.4 | **Payload codecs** | **done for byte-level**; protobuf/msgpack *field* decoding is deliberately out — it needs a per-subject schema registry (protobuf) or a new runtime dependency (msgpack), both of which are product decisions rather than work items |
+| 1.4 | **Payload codecs** | **done** — binary detection, hex dump, base64, plus schema-less protobuf wire decoding and full msgpack decoding, with no runtime dependency. Protobuf field *names* still need a descriptor |
 | 1.5 | **Request/reply** from the UI and CLI | **done** — shipped with the phase 2 write surface |
 | 1.6 | Tests on the query engine, `matchFilter`, envelope limits and truncation | **done** — 67 tests, including guardrails on the write boundary. Found and fixed a real `>` wildcard bug |
 | 1.7 | Bare nkey seed auth | **done** — validated at creation, stripped like every other credential; verified against a server configured with nkey auth |

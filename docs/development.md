@@ -137,5 +137,10 @@ publisher*) pointing at `solsolettidev/nats-trail`, workflow `release.yml`, envi
 Until those five settings exist the workflow falls back to the `NPM_TOKEN` secret; delete the secret
 once they do, which is the whole point of the change.
 
+The same workflow then publishes to the MCP Registry with `mcp-publisher login github-oidc` — also
+tokenless, also on the `id-token` permission. It waits for npm to actually serve the new version
+first, because the registry verifies the metadata against the published package and would reject it
+otherwise.
+
 `prepare-packages.mjs` runs on `prepack` and regenerates each package's LICENSE and README, and
 pins `packages/mcp/server.json` to the version being published.
