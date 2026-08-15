@@ -1,0 +1,16 @@
+apiVersion: v2
+name: nats-trail
+description: Agent-native observability for NATS and JetStream
+type: application
+version: 0.1.0
+appVersion: "0.5.0"
+home: https://github.com/solsolettidev/nats-trail
+sources:
+  - https://github.com/solsolettidev/nats-trail
+keywords:
+  - nats
+  - jetstream
+  - observability
+  - mcp
+maintainers:
+  - name: Sol Soletti

@@ -1,0 +1,30 @@
+NATS Trail {{ .Chart.AppVersion }} is installed as {{ include "nats-trail.fullname" . }}.
+
+Reach it:
+
+{{- if .Values.ingress.enabled }}
+  {{- range .Values.ingress.hosts }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
+  {{- end }}
+{{- else }}
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "nats-trail.fullname" . }} {{ .Values.service.port }}:{{ .Values.service.port }}
+  http://127.0.0.1:{{ .Values.service.port }}
+{{- end }}
+
+{{ if .Values.config.enabled -}}
+Check that your declared configuration landed, including any unresolved ${VAR}:
+
+  curl http://127.0.0.1:{{ .Values.service.port }}/api/config
+{{- end }}
+
+{{ if not .Values.auth.existingSecret -}}
+WARNING: no bearer tokens are configured, so the Integration API and WebSocket
+are open to anything that can reach the Service. Set auth.existingSecret, or put
+an authenticating proxy in front. The UI and the local API have no login of
+their own by design — identity is delegated to whatever already fronts it.
+{{- end }}
+
+{{ if not .Values.persistence.enabled -}}
+WARNING: persistence is disabled. Contexts, saved filters and the correlation
+index live on the volume and will be lost when the pod restarts.
+{{- end }}

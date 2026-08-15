@@ -1,0 +1,90 @@
+# NATS Trail runs as a single replica with a persistent volume.
+#
+# It is a StatefulSet rather than a Deployment on purpose: the correlation index
+# and local state live in SQLite on disk, which a second replica would corrupt.
+# For a debugging tool one replica is the right shape — say so rather than ship
+# a Deployment that breaks quietly when someone scales it.
+
+image:
+  repository: ghcr.io/solsolettidev/nats-trail
+  tag: ""          # defaults to .Chart.AppVersion
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+service:
+  type: ClusterIP
+  port: 4000
+
+# Declarative configuration. Contexts defined here are asserted on every start
+# and cannot be edited or deleted through the UI, so the chart stays the source
+# of truth. Use ${VAR} to pull credentials from `envFrom` secrets instead of
+# putting them in values.
+config:
+  enabled: true
+  contexts: []
+  #  - id: prod
+  #    name: Production
+  #    environment: prod
+  #    url: nats://nats.default.svc:4222
+  #    auth:
+  #      type: userpass
+  #      username: nats-trail
+  #      password: ${NATS_PASSWORD}
+  correlationKeys: []
+  #  - name: trace_id
+  #    headers: ["traceparent"]
+  #    format: w3c-traceparent
+
+# Secrets are referenced, never templated into the ConfigMap.
+envFrom: []
+#  - secretRef:
+#      name: nats-trail-credentials
+env: []
+
+persistence:
+  enabled: true
+  size: 5Gi
+  storageClass: ""
+  accessMode: ReadWriteOnce
+
+# Bearer tokens for the Integration API and WebSocket, as `name:token` or
+# `name:token:write`. Leave empty to disable auth, which is only sensible when
+# something in front already authenticates.
+auth:
+  existingSecret: ""
+  secretKey: NATS_TRAIL_TOKENS
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: nats-trail.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 1Gi
+
+# The image already runs as an unprivileged user; this makes it explicit and
+# survives a cluster policy that requires it.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop: ["ALL"]
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+podAnnotations: {}

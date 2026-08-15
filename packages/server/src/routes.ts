@@ -17,6 +17,17 @@ import { executeMcpTool, mcpTools } from "@nats-trail/mcp";
 import { connectionPool } from "./connection.js";
 import { fetchServerConnections, fetchServerHealth } from "./monitoring.js";
 import { dropIndex, getCoverage, indexBatch, lookup, recordCoverage } from "./correlation-index.js";
+import { declaredContextIds, loadDeclaredConfig, mergeContexts } from "./declared-config.js";
+
+// Read once at startup: a config file that changes under a running process is a
+// worse problem than one that requires a restart.
+const declared = loadDeclaredConfig();
+const declaredIds = declaredContextIds(declared);
+
+/** Stored contexts plus whatever the operator declared, declared winning. */
+function allContexts(): Context[] {
+  return mergeContexts(declared.contexts, loadContexts());
+}
 import { authEnabled, authenticate, canWrite } from "./auth.js";
 import {
   loadContexts,
@@ -294,8 +305,8 @@ router.post("/index/:stream", async (req, res) => {
   const maxMessages = Math.min(Number((req.body as { maxMessages?: number })?.maxMessages) || 1_000_000, 10_000_000);
   try {
     const keys = resolveCorrelationKeys(
-      loadContexts().find((item) => item.id === contextId)?.correlationKeys,
-      loadCorrelationKeys(),
+      allContexts().find((item) => item.id === contextId)?.correlationKeys,
+      declared.correlationKeys.length ? declared.correlationKeys : loadCorrelationKeys(),
     );
     const result = await buildIndex(contextId, req.params.stream, keys, maxMessages);
     res.json({ ok: true, stream: req.params.stream, keys: keys.map((k) => k.name), ...result });
@@ -314,7 +325,7 @@ router.delete("/index/:stream", (req, res) => {
 
 router.get("/correlation-keys", (req, res) => {
   const contextId = requestContextId(req);
-  const context = loadContexts().find((item) => item.id === contextId);
+  const context = allContexts().find((item) => item.id === contextId);
   const global = loadCorrelationKeys();
   res.json({
     // What actually applies to this context, and where it came from, so the
@@ -327,6 +338,11 @@ router.get("/correlation-keys", (req, res) => {
 });
 
 router.put("/correlation-keys", (req, res) => {
+  if (declared.correlationKeys.length > 0) {
+    return res.status(409).json({
+      error: normalizeError("correlation keys are declared in NATS_TRAIL_CONFIG and cannot be changed here"),
+    });
+  }
   const keys = (req.body as { keys?: unknown })?.keys;
   const errors = validateCorrelationKeys(keys);
   if (errors.length) return res.status(400).json({ errors: errors.map((message) => normalizeError(message)) });
@@ -364,8 +380,20 @@ router.delete("/filters/:id", (req, res) => {
 
 // ---- Contexts -------------------------------------------------------------
 
+router.get("/config", (_req, res) => {
+  // What the deployment was told to be, so an operator can see whether their
+  // ConfigMap actually landed without shelling into the container.
+  res.json({
+    declaredContexts: declared.contexts.map((context) => sanitizeContext(context)),
+    declaredCorrelationKeys: declared.correlationKeys,
+    errors: declared.errors,
+    dataDir: process.env.NATS_TRAIL_DATA ?? null,
+    configPath: process.env.NATS_TRAIL_CONFIG ?? null,
+  });
+});
+
 router.get("/contexts", (_req, res) => {
-  res.json(loadContexts().map(sanitizeContext));
+  res.json(allContexts().map(sanitizeContext));
 });
 
 router.post("/contexts", (req, res) => {
@@ -373,8 +401,16 @@ router.post("/contexts", (req, res) => {
   const errors = validateContext(body);
   if (errors.length) return res.status(400).json({ errors });
 
-  const contexts = loadContexts();
   const id = body.id?.trim() || slug(body.name ?? "context");
+  // Declared contexts are the operator's, asserted from a file on every start.
+  // Letting the UI write over one would produce an instance that silently
+  // disagrees with its own configuration until the next redeploy.
+  if (declaredIds.has(id)) {
+    return res.status(409).json({
+      error: normalizeError(`context "${id}" is declared in NATS_TRAIL_CONFIG and cannot be changed here`),
+    });
+  }
+  const contexts = loadContexts();
   const ctx: Context = {
     id,
     name: body.name!.trim(),
@@ -391,8 +427,12 @@ router.post("/contexts", (req, res) => {
 });
 
 router.delete("/contexts/:id", (req, res) => {
-  const next = loadContexts().filter((c) => c.id !== req.params.id);
-  saveContexts(next);
+  if (declaredIds.has(req.params.id)) {
+    return res.status(409).json({
+      error: normalizeError(`context "${req.params.id}" is declared in NATS_TRAIL_CONFIG and cannot be deleted here`),
+    });
+  }
+  saveContexts(loadContexts().filter((c) => c.id !== req.params.id));
   res.json({ ok: true });
 });
 
@@ -420,7 +460,7 @@ router.get("/connections", (_req, res) => {
 
 router.post("/connect", async (req, res) => {
   const { contextId, select } = req.body as { contextId?: string; select?: boolean };
-  const ctx = loadContexts().find((c) => c.id === contextId);
+  const ctx = allContexts().find((c) => c.id === contextId);
   if (!ctx) return res.status(404).json({ error: normalizeError("context not found") });
   const state = await connectionPool.connect(ctx);
   // Only explicit callers (the UI) move the selected context; agent/CLI
@@ -544,7 +584,7 @@ router.get("/server/connections", async (req, res) => {
 
 /** Look up a stored context by id, for endpoints that read its monitoring URL. */
 function requireContext(contextId: string): Context {
-  const ctx = loadContexts().find((item) => item.id === contextId);
+  const ctx = allContexts().find((item) => item.id === contextId);
   if (!ctx) throw new Error(`Unknown context: ${contextId || "no context"}`);
   return ctx;
 }
@@ -796,7 +836,7 @@ function executeIntegrationTool(name: string, input: Record<string, unknown>) {
   const requested = typeof input.contextId === "string" && input.contextId ? input.contextId : null;
   const target = requested ?? selectedContextId() ?? "";
   return executeMcpTool(name, input, {
-    contexts: loadContexts(),
+    contexts: allContexts(),
     filters: loadFilters(),
     auditEntries: loadAuditEntries(),
     connectionState: connectionPool.getState(target || null),
@@ -818,8 +858,8 @@ function executeIntegrationTool(name: string, input: Record<string, unknown>) {
     lookupCorrelation: (key, value, max) => lookup(target, key, value, max),
     indexCoverage: () => getCoverage(target),
     correlationKeys: resolveCorrelationKeys(
-      loadContexts().find((item) => item.id === target)?.correlationKeys,
-      loadCorrelationKeys(),
+      allContexts().find((item) => item.id === target)?.correlationKeys,
+      declared.correlationKeys.length ? declared.correlationKeys : loadCorrelationKeys(),
     ),
     serverHealth: () => fetchServerHealth(requireContext(target)),
     serverConnections: (max) => fetchServerConnections(requireContext(target), max),

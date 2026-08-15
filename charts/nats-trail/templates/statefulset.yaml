@@ -1,0 +1,133 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "nats-trail.fullname" . }}
+  labels:
+    {{- include "nats-trail.labels" . | nindent 4 }}
+spec:
+  # Deliberately not scalable: local state lives in SQLite on the volume, and a
+  # second replica would corrupt it. A debugging tool does not need horizontal
+  # scale, and a Deployment that breaks quietly when scaled would be worse.
+  replicas: 1
+  serviceName: {{ include "nats-trail.fullname" . }}
+  selector:
+    matchLabels:
+      {{- include "nats-trail.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "nats-trail.selectorLabels" . | nindent 8 }}
+      annotations:
+        {{- if .Values.config.enabled }}
+        # Roll the pod when declared configuration changes, so a ConfigMap edit
+        # actually takes effect instead of waiting for an unrelated restart.
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- end }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: nats-trail
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          args: ["serve"]
+          ports:
+            - name: http
+              containerPort: 4000
+              protocol: TCP
+          env:
+            # Bound to all interfaces because the pod network is the boundary
+            # here; put an ingress or an authenticating proxy in front.
+            - name: NATS_TRAIL_HOST
+              value: "0.0.0.0"
+            - name: NATS_TRAIL_PORT
+              value: "4000"
+            - name: NATS_TRAIL_DATA
+              value: /data
+            {{- if .Values.config.enabled }}
+            - name: NATS_TRAIL_CONFIG
+              value: /config/nats-trail.json
+            {{- end }}
+            {{- if .Values.auth.existingSecret }}
+            - name: NATS_TRAIL_TOKENS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.auth.existingSecret }}
+                  key: {{ .Values.auth.secretKey }}
+            {{- end }}
+            {{- with .Values.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.envFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          # Readiness deliberately does not depend on NATS. A NATS outage is
+          # exactly when someone needs this tool; making it unschedulable then
+          # would be backwards.
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            {{- if .Values.config.enabled }}
+            - name: config
+              mountPath: /config
+              readOnly: true
+            {{- end }}
+      volumes:
+        {{- if .Values.config.enabled }}
+        - name: config
+          configMap:
+            name: {{ include "nats-trail.fullname" . }}-config
+        {{- end }}
+        {{- if not .Values.persistence.enabled }}
+        - name: data
+          emptyDir: {}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  {{- if .Values.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [{{ .Values.persistence.accessMode | quote }}]
+        {{- if .Values.persistence.storageClass }}
+        storageClassName: {{ .Values.persistence.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.persistence.size | quote }}
+  {{- end }}
