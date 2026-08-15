@@ -336,3 +336,27 @@ Low-cardinality fields (`status`, `type`) are rejected — they categorise, they
 
 > NATS headers were previously read on publish but never on receive, so header-carried identifiers
 > were invisible. They are now read on every path.
+
+### Configuring keys
+
+`GET /api/correlation-keys` reports what applies and where it came from:
+
+```json
+{ "effective": [ ... ], "source": "global", "global": [ ... ], "context": null }
+```
+
+Precedence is context override → deployment-wide (`data/correlation.json`) → defaults. An empty
+array counts as "not configured" rather than "correlate nothing", which is never what anyone means.
+Saving is validated: a key with neither a header nor a path would silently never match, so it is
+refused at save time rather than at query time.
+
+Exposed as `nats-trail keys list` and `nats-trail keys suggest`, and as the tools
+`natstrail.list_correlation_keys` and `natstrail.suggest_correlation_keys`.
+
+### Tracing by any key
+
+`natstrail.trace_by_key` takes `--key` and `--value`, so a trace works on whatever a deployment
+correlates by. An unknown key is rejected with the list of configured ones rather than returning an
+empty result that looks like "nothing found".
+
+`trace_by_request_id` and `trace_by_correlation_id` remain as named shortcuts that delegate to it.

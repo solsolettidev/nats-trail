@@ -96,6 +96,9 @@ const LIVE_TOOLS = new Set([
   "natstrail.discover_subjects",
   "natstrail.reconstruct_flow",
   "natstrail.get_health_summary",
+  "natstrail.trace_by_key",
+  "natstrail.list_correlation_keys",
+  "natstrail.suggest_correlation_keys",
 ]);
 
 main(process.argv.slice(2)).catch((err: unknown) => fail(err instanceof Error ? err.message : String(err)));
@@ -231,9 +234,11 @@ async function runCommand(args: string[]): Promise<void> {
 
   if (command[0] === "trace") {
     const input = readNamedArgs(command.slice(1));
-    if (input.requestId) await runMcpTool("natstrail.trace_by_request_id", command.slice(1), output);
+    // --key/--value is the general form; the two named flags stay as shortcuts.
+    if (input.key) await runMcpTool("natstrail.trace_by_key", command.slice(1), output);
+    else if (input.requestId) await runMcpTool("natstrail.trace_by_request_id", command.slice(1), output);
     else if (input.correlationId) await runMcpTool("natstrail.trace_by_correlation_id", command.slice(1), output);
-    else fail("Usage: nats-ui trace --requestId <id> --contextId <id> --limit <n>");
+    else fail("Usage: nats-trail trace --key <name> --value <value>  (or --requestId / --correlationId)");
     return;
   }
 
@@ -339,6 +344,16 @@ async function runCommand(args: string[]): Promise<void> {
 
   if (command[0] === "delete" && command[1] === "stream") {
     await deleteStream(command.slice(2), output);
+    return;
+  }
+
+  if (command[0] === "keys" && command[1] === "list") {
+    await runMcpTool("natstrail.list_correlation_keys", command.slice(2), output);
+    return;
+  }
+
+  if (command[0] === "keys" && command[1] === "suggest") {
+    await runMcpTool("natstrail.suggest_correlation_keys", command.slice(2), output);
     return;
   }
 
@@ -1197,12 +1212,14 @@ Commands:
   subject listen             Listen to a NATS Core subject over WebSocket
   messages search            Search JetStream messages through the Query Engine
   message detail             Get one stream message by --stream and --seq
-  trace                      Trace by --requestId or --correlationId
+  trace                      Trace by --key <name> --value <v>, or --request-id / --correlation-id
   kv list                    List Key/Value buckets
   kv keys                    List keys and values in a bucket (--bucket)
   kv history                 Revision history for one key (--bucket --key)
   obj list                   List Object Store buckets
   obj objects                List objects in a bucket (--bucket)
+  keys list                  Correlation keys in force for a context
+  keys suggest               Propose correlation keys from real traffic
   discover                   Discover subjects and infer payload shapes
   flow                       Reconstruct a flow by --request-id or --correlation-id
   health                     What looks broken right now, ranked

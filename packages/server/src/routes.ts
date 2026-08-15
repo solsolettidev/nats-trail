@@ -5,7 +5,10 @@ import {
   sanitizeContext,
   validateContext,
   type ConsumerSpec,
+  resolveCorrelationKeys,
+  validateCorrelationKeys,
   type Context,
+  type CorrelationKey,
   type Filter,
   type IncidentContext,
   type StreamSpec,
@@ -19,8 +22,10 @@ import {
   appendAuditEntry,
   type AuditOrigin,
   loadAuditEntries,
+  loadCorrelationKeys,
   loadFilters,
   saveContexts,
+  saveCorrelationKeys,
   saveFilters,
   loadPreferences,
   savePreferences,
@@ -229,6 +234,30 @@ router.post("/integration/enrich/sentry", async (req, res) => {
 
 // ---- Saved filters ---------------------------------------------------------
 
+// ---- Correlation keys ------------------------------------------------------
+
+router.get("/correlation-keys", (req, res) => {
+  const contextId = requestContextId(req);
+  const context = loadContexts().find((item) => item.id === contextId);
+  const global = loadCorrelationKeys();
+  res.json({
+    // What actually applies to this context, and where it came from, so the
+    // caller does not have to reimplement the precedence rule.
+    effective: resolveCorrelationKeys(context?.correlationKeys, global),
+    source: context?.correlationKeys?.length ? "context" : global.length ? "global" : "default",
+    global,
+    context: context?.correlationKeys ?? null,
+  });
+});
+
+router.put("/correlation-keys", (req, res) => {
+  const keys = (req.body as { keys?: unknown })?.keys;
+  const errors = validateCorrelationKeys(keys);
+  if (errors.length) return res.status(400).json({ errors: errors.map((message) => normalizeError(message)) });
+  saveCorrelationKeys(keys as CorrelationKey[]);
+  res.json({ ok: true, keys });
+});
+
 router.get("/filters", (_req, res) => {
   res.json(loadFilters());
 });
@@ -276,6 +305,7 @@ router.post("/contexts", (req, res) => {
     environment: body.environment ?? "custom",
     url: body.url!.trim(),
     monitorUrl: body.monitorUrl?.trim() || undefined,
+    correlationKeys: body.correlationKeys?.length ? body.correlationKeys : undefined,
     auth: body.auth ?? { type: "none" },
     tls: body.tls ?? { enabled: false },
   };
@@ -706,6 +736,10 @@ function executeIntegrationTool(name: string, input: Record<string, unknown>) {
     listObjectBuckets: () => connectionPool.listObjectBuckets(target),
     listObjects: (bucket, limit) => connectionPool.listObjects(target, bucket, limit),
     streamSubjects: (stream) => connectionPool.streamSubjects(target, stream),
+    correlationKeys: resolveCorrelationKeys(
+      loadContexts().find((item) => item.id === target)?.correlationKeys,
+      loadCorrelationKeys(),
+    ),
     serverHealth: () => fetchServerHealth(requireContext(target)),
     serverConnections: (max) => fetchServerConnections(requireContext(target), max),
   });

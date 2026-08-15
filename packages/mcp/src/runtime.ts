@@ -31,8 +31,12 @@ import {
   type Flow,
   type HealthFinding,
   type IncidentContext,
+  type CorrelationKey,
   type SubjectShape,
+  DEFAULT_CORRELATION_KEYS,
+  extractCorrelations,
   inferFields,
+  suggestCorrelationKeys,
   reconstructFlow,
   subjectsOfStream,
   summarizeHealth,
@@ -60,6 +64,32 @@ export interface McpRuntimeData {
   serverHealth?: () => Promise<ServerHealth>;
   serverConnections?: (limit: number) => Promise<ServerConnection[]>;
   streamSubjects?: (stream: string) => Promise<Record<string, number>>;
+  /** Correlation keys in force for this context; defaults apply when absent. */
+  correlationKeys?: CorrelationKey[];
+}
+
+/** Every string leaf of a JSON value, as [dotted path, value] pairs. */
+function flattenStrings(value: unknown, prefix = "", out: [string, string][] = [], depth = 0): [string, string][] {
+  if (depth > 6 || out.length > 200) return out;
+  if (typeof value === "string") {
+    if (prefix && value) out.push([prefix, value]);
+    return out;
+  }
+  if (typeof value === "number" && prefix) {
+    out.push([prefix, String(value)]);
+    return out;
+  }
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+      flattenStrings(child, prefix ? `${prefix}.${key}` : key, out, depth + 1);
+    }
+  }
+  return out;
+}
+
+/** Correlation keys in force, falling back to the specification-backed defaults. */
+function keysOf(data: McpRuntimeData): CorrelationKey[] {
+  return data.correlationKeys?.length ? data.correlationKeys : DEFAULT_CORRELATION_KEYS;
 }
 
 /** Page size used when a tool scans a stream window incrementally. */
@@ -213,7 +243,7 @@ async function executeMcpToolInner(name: string, input: Record<string, unknown>,
       );
       return createQueryEnvelope({
         query: { tool: name, contextId: input.contextId, filter: filter.id },
-        results: collected.messages.map((message) => toAgentMessage(message, filter.stream)),
+        results: collected.messages.map((message) => toAgentMessage(message, filter.stream, undefined, keysOf(data))),
         limit,
         nextCursor: collected.nextCursor,
         warnings: collected.warnings,
@@ -271,7 +301,7 @@ async function executeMcpToolInner(name: string, input: Record<string, unknown>,
     if (!Number.isFinite(seq) || seq <= 0) return inputError(name, limit, "seq must be a positive number");
     try {
       const msg = await data.getStreamMessage(stream, Math.floor(seq));
-      return createQueryEnvelope({ query: { tool: name, contextId: input.contextId, stream, seq }, results: msg ? [toAgentMessage(msg, stream)] : [], limit });
+      return createQueryEnvelope({ query: { tool: name, contextId: input.contextId, stream, seq }, results: msg ? [toAgentMessage(msg, stream, undefined, keysOf(data))] : [], limit });
     } catch (err) {
       return toolError(name, limit, err);
     }
@@ -295,7 +325,7 @@ async function executeMcpToolInner(name: string, input: Record<string, unknown>,
 
     const keep = (message: Message): boolean => {
       if (!matchesString(message.data, input.text)) return false;
-      const shaped = toAgentMessage(message, stream);
+      const shaped = toAgentMessage(message, stream, undefined, keysOf(data));
       return (
         matchesString(shaped.requestId, input.requestId) &&
         matchesString(shaped.correlationId, input.correlationId)
@@ -323,7 +353,7 @@ async function executeMcpToolInner(name: string, input: Record<string, unknown>,
           toTs: numberInput(input.toTs),
           maxScan: numberInput(input.maxScan),
         });
-        const results = page.messages.map((msg) => toAgentMessage(msg, stream));
+        const results = page.messages.map((msg) => toAgentMessage(msg, stream, undefined, keysOf(data)));
         return createQueryEnvelope({ query, results, limit, nextCursor: page.nextCursor, warnings: page.warnings });
       }
 
@@ -342,7 +372,7 @@ async function executeMcpToolInner(name: string, input: Record<string, unknown>,
       );
       return createQueryEnvelope({
         query,
-        results: collected.messages.map((msg) => toAgentMessage(msg, stream)),
+        results: collected.messages.map((msg) => toAgentMessage(msg, stream, undefined, keysOf(data))),
         limit,
         nextCursor: collected.nextCursor,
         warnings: collected.warnings,
@@ -352,43 +382,73 @@ async function executeMcpToolInner(name: string, input: Record<string, unknown>,
     }
   }
 
-  if (name === "natstrail.trace_by_request_id" || name === "natstrail.trace_by_correlation_id") {
+  if (
+    name === "natstrail.trace_by_key" ||
+    name === "natstrail.trace_by_request_id" ||
+    name === "natstrail.trace_by_correlation_id"
+  ) {
     const error = validateConnectedContext(name, input, data);
     if (error) return error;
     if (!data.queryStreamMessages || !data.listStreams) return notImplemented(name, limit);
-    const key = name.endsWith("request_id") ? "requestId" : "correlationId";
-    const value = stringInput(input[key]);
-    if (!value) return inputError(name, limit, `${key} is required`);
+
+    // The two named tools are shortcuts for the generic one, kept so existing
+    // callers and agent prompts do not break.
+    const key =
+      name === "natstrail.trace_by_request_id"
+        ? "request_id"
+        : name === "natstrail.trace_by_correlation_id"
+          ? "correlation_id"
+          : stringInput(input.key);
+    const value =
+      name === "natstrail.trace_by_request_id"
+        ? stringInput(input.requestId)
+        : name === "natstrail.trace_by_correlation_id"
+          ? stringInput(input.correlationId)
+          : stringInput(input.value);
+
+    if (!key) return inputError(name, limit, "key is required");
+    if (!value) return inputError(name, limit, `a value for ${key} is required`);
+
+    const configured = keysOf(data);
+    if (!configured.some((item) => item.name === key)) {
+      return inputError(
+        name,
+        limit,
+        `unknown correlation key: ${key}. Configured keys are ${configured.map((item) => item.name).join(", ")}`,
+      );
+    }
+
     try {
       const streams = await data.listStreams();
       const found: AgentMessage[] = [];
       const warnings: QueryWarning[] = [];
       const budget = normalizeScan(input.maxScan);
+
       for (const stream of streams) {
         if (found.length >= limit) break;
-        // Page through the stream window so the whole budget is scanned for
-        // matches, not just the first page of messages.
-        let startSeq: number | undefined;
-        let scanned = 0;
-        while (scanned < budget && found.length < limit) {
-          const page = await data.queryStreamMessages({
-            stream: stream.name,
-            limit: SCAN_PAGE_SIZE,
-            startSeq,
-            fromTs: numberInput(input.fromTs),
-            toTs: numberInput(input.toTs),
-            maxScan: budget - scanned,
-          });
-          scanned += page.scanned;
-          warnings.push(...page.warnings.map((warning) => ({ ...warning, message: `${stream.name}: ${warning.message}` })));
-          const shaped = page.messages.map((msg) => toAgentMessage(msg, stream.name));
-          found.push(...shaped.filter((msg) => key === "requestId" ? msg.requestId === value : msg.correlationId === value));
-          if (!page.nextCursor) break;
-          startSeq = parseCursor(page.nextCursor);
-        }
+        // KV and Object Store backing streams carry no application correlation.
+        if (/^(KV|OBJ)_/.test(stream.name)) continue;
+        const collected = await collectMatching(
+          data.queryStreamMessages,
+          { stream: stream.name, fromTs: numberInput(input.fromTs), toTs: numberInput(input.toTs) },
+          limit - found.length,
+          budget,
+          undefined,
+          (message) => extractCorrelations(message, configured)[key] === value,
+        );
+        warnings.push(
+          ...collected.warnings.map((warning) => ({ ...warning, message: `${stream.name}: ${warning.message}` })),
+        );
+        found.push(...collected.messages.map((message) => toAgentMessage(message, stream.name, undefined, configured)));
       }
+
       found.sort((a, b) => a.timestamp - b.timestamp);
-      return createQueryEnvelope({ query: { tool: name, contextId: input.contextId, [key]: value }, results: found, limit, warnings });
+      return createQueryEnvelope({
+        query: { tool: name, contextId: input.contextId, key, value },
+        results: found,
+        limit,
+        warnings,
+      });
     } catch (err) {
       return toolError(name, limit, err);
     }
@@ -421,7 +481,7 @@ async function executeMcpToolInner(name: string, input: Record<string, unknown>,
           for (const message of page.messages) {
             const event = parseDlqEvent(message);
             found.push({
-              message: toAgentMessage(message, stream.name),
+              message: toAgentMessage(message, stream.name, undefined, keysOf(data)),
               originalSubject: event.originalSubject,
               reason: event.reason,
             });
@@ -514,6 +574,68 @@ async function executeMcpToolInner(name: string, input: Record<string, unknown>,
     if (!data.serverConnections) return notImplemented(name, limit);
     try {
       return createQueryEnvelope({ query: { tool: name, contextId: input.contextId }, results: await data.serverConnections(limit), limit });
+    } catch (err) {
+      return toolError(name, limit, err);
+    }
+  }
+
+  if (name === "natstrail.list_correlation_keys") {
+    const keys = keysOf(data);
+    return createQueryEnvelope({
+      query: { tool: name, contextId: input.contextId },
+      results: keys.map((key) => ({
+        ...key,
+        // Say where a key came from, so "why did this not match" is answerable.
+        source: data.correlationKeys?.length ? "configured" : "default",
+      })),
+      limit,
+    });
+  }
+
+  if (name === "natstrail.suggest_correlation_keys") {
+    const error = validateConnectedContext(name, input, data);
+    if (error) return error;
+    if (!data.listStreams || !data.streamSubjects || !data.queryStreamMessages) return notImplemented(name, limit);
+    const sample = Math.min(Math.max(numberInput(input.sample) ?? 20, 1), 100);
+    const onlyStream = stringInput(input.stream);
+
+    try {
+      const streams = (await data.listStreams()).filter((s) => !onlyStream || s.name === onlyStream);
+      const fields: { path: string; subject: string; values: string[] }[] = [];
+      const warnings: QueryWarning[] = [];
+
+      for (const stream of streams) {
+        if (/^(KV|OBJ)_/.test(stream.name)) continue;
+        const seen = await data.streamSubjects(stream.name).catch(() => ({}));
+        for (const { subject } of subjectsOfStream(stream, seen)) {
+          const page = await data.queryStreamMessages({
+            stream: stream.name,
+            subject,
+            limit: sample,
+            maxScan: numberInput(input.maxScan),
+          });
+          warnings.push(...page.warnings.map((w) => ({ ...w, message: `${stream.name}/${subject}: ${w.message}` })));
+          // Collect every string leaf, so the suggester sees real values rather
+          // than the summarised shape.
+          const byPath = new Map<string, string[]>();
+          for (const message of page.messages) {
+            if (!message.isJson || message.json === null) continue;
+            for (const [path, value] of flattenStrings(message.json)) {
+              const list = byPath.get(path) ?? [];
+              list.push(value);
+              byPath.set(path, list);
+            }
+          }
+          for (const [path, values] of byPath) fields.push({ path, subject, values });
+        }
+      }
+
+      const configured = new Set(keysOf(data).flatMap((key) => key.paths ?? []));
+      const results = suggestCorrelationKeys(fields)
+        // Do not propose what is already configured.
+        .filter((candidate) => !configured.has(candidate.path));
+
+      return createQueryEnvelope({ query: { tool: name, contextId: input.contextId, sample }, results, limit, warnings });
     } catch (err) {
       return toolError(name, limit, err);
     }

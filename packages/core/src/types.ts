@@ -1,5 +1,9 @@
 // Core domain types shared by every interface (UI now; CLI and MCP later).
 
+import type { CorrelationKey } from "./correlation.js";
+
+export type { CorrelationKey } from "./correlation.js";
+
 export type Environment = "local" | "dev" | "staging" | "prod" | "custom";
 
 export type AuthType = "none" | "userpass" | "token" | "creds" | "nkey";
@@ -31,6 +35,12 @@ export interface Context {
   name: string;
   environment: Environment;
   url: string;
+  /**
+   * Correlation keys for this context only. Unset means the deployment-wide
+   * configuration applies — conventions belong to an organisation, not an
+   * environment, so overriding is the exception.
+   */
+  correlationKeys?: CorrelationKey[];
   /**
    * HTTP monitoring endpoint. Defaults to the connection host on port 8222,
    * which is the NATS convention; set it when the server publishes monitoring

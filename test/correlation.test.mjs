@@ -114,15 +114,45 @@ test("toAgentMessage accepts custom keys", () => {
 
 const field = (path, subject, values) => ({ path, subject, values });
 
-test("suggestCorrelationKeys ranks fields that cross subjects first", () => {
+test("suggestCorrelationKeys ranks by values that recur across subjects", () => {
   const suggestions = suggestCorrelationKeys([
+    // Same four values on two subjects: this links messages.
     field("request_id", "a.created", ["r1", "r2", "r3", "r4"]),
     field("request_id", "a.done", ["r1", "r2", "r3", "r4"]),
     field("order_id", "a.created", ["o1", "o2", "o3", "o4"]),
   ]);
   assert.equal(suggestions[0].path, "request_id");
-  assert.equal(suggestions[0].subjects, 2);
-  assert.match(suggestions[0].reason, /present on 2 subjects/);
+  assert.equal(suggestions[0].linkingValues, 4);
+  assert.match(suggestions[0].reason, /recur across 2 subjects/);
+});
+
+test("suggestCorrelationKeys demotes unique-per-message fields that never link", () => {
+  // Present on two subjects, but no value is ever shared: it identifies the
+  // message, not a flow. This is the false positive worth avoiding.
+  const suggestions = suggestCorrelationKeys([
+    field("message_id", "a.created", ["m1", "m2", "m3", "m4"]),
+    field("message_id", "a.done", ["m5", "m6", "m7", "m8"]),
+    field("request_id", "a.created", ["r1", "r2", "r3", "r4"]),
+    field("request_id", "a.done", ["r1", "r2", "r3", "r4"]),
+  ]);
+  assert.equal(suggestions[0].path, "request_id", "linking beats mere presence");
+  const messageId = suggestions.find((s) => s.path === "message_id");
+  assert.equal(messageId.linkingValues, 0);
+  assert.match(messageId.reason, /identifies a message rather than a flow/);
+});
+
+test("suggestCorrelationKeys rejects timestamps outright", () => {
+  // A timestamp is unique per message and present everywhere — exactly the
+  // shape that fooled the first version of this heuristic.
+  const suggestions = suggestCorrelationKeys([
+    field("emitted_at", "a.created", ["2026-08-14T10:00:00Z", "2026-08-14T10:00:01Z", "2026-08-14T10:00:02Z", "2026-08-14T10:00:03Z"]),
+    field("emitted_at", "a.done", ["2026-08-14T11:00:00Z", "2026-08-14T11:00:01Z", "2026-08-14T11:00:02Z", "2026-08-14T11:00:03Z"]),
+  ]);
+  assert.deepEqual(suggestions, []);
+
+  // Also by name, so an epoch-millis field is caught too.
+  const epoch = suggestCorrelationKeys([field("created_ts", "a", ["1786745067388", "1786745067389", "1786745067390", "1786745067391"])]);
+  assert.deepEqual(epoch, []);
 });
 
 test("suggestCorrelationKeys explains a single-subject id rather than hiding it", () => {
