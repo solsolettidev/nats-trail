@@ -517,6 +517,7 @@ class ManagedConnection {
               subject: m.subject,
               data: decoder.decode(m.data),
               bytes: m.data,
+              headers: readHeaders(m),
               timestamp: ts,
               size: m.data.length,
               seq: m.seq,
@@ -587,6 +588,7 @@ function toConnectionOptions(ctx: Context): ConnectionOptions {
 interface DirectMessageLike {
   subject: string;
   data: Uint8Array;
+  headers?: unknown;
   seq: number;
   time?: Date;
   timestamp?: Date;
@@ -598,6 +600,24 @@ async function getDirectMessage(jsm: JetStreamManager, stream: string, seq: numb
     getMessage: (stream: string, query: { seq: number }) => Promise<DirectMessageLike | null>;
   };
   return streams.getMessage(stream, { seq });
+}
+
+/**
+ * Read NATS headers into a plain record.
+ *
+ * The client exposes them as a MsgHdrs object rather than a map, which is why
+ * they were silently dropped before: nothing crashed, the field was just never
+ * populated, and header-carried correlation ids were invisible.
+ */
+export function readHeaders(msg: { headers?: unknown }): Record<string, string[]> | undefined {
+  const raw = msg.headers as { keys?: () => string[]; values?: (key: string) => string[] } | undefined;
+  if (!raw || typeof raw.keys !== "function" || typeof raw.values !== "function") return undefined;
+  const out: Record<string, string[]> = {};
+  for (const key of raw.keys()) {
+    const values = raw.values(key);
+    if (values && values.length > 0) out[key] = values;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 /** NATS durations are nanoseconds; the product speaks milliseconds. */
@@ -698,6 +718,7 @@ function directToMessage(msg: DirectMessageLike): Message {
     subject: msg.subject,
     data: decoder.decode(msg.data),
     bytes: msg.data,
+    headers: readHeaders(msg),
     timestamp: msg.info?.timestampNanos ? Math.round(msg.info.timestampNanos / 1e6) : (msg.time ?? msg.timestamp ?? new Date()).getTime(),
     size: msg.data.length,
     seq: msg.seq,

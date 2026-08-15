@@ -4,6 +4,7 @@ import { WebSocketServer, type WebSocket } from "ws";
 import { DeliverPolicy, AckPolicy } from "nats";
 import type { NatsConnection, Subscription, ConsumerMessages, ConsumerConfig } from "nats";
 import { parseMessage, normalizeError } from "@nats-trail/core";
+import { readHeaders } from "./connection.js";
 import { connectionPool } from "./connection.js";
 import { authEnabled, authenticate } from "./auth.js";
 import { loadPreferences } from "./storage.js";
@@ -104,6 +105,7 @@ export function attachWebSocket(server: Server): void {
               subject: m.subject,
               data: decoder.decode(m.data),
               bytes: m.data,
+              headers: readHeaders(m),
               timestamp: Date.now(),
               size: m.data.length,
               reply: m.reply,
@@ -185,6 +187,7 @@ export function attachWebSocket(server: Server): void {
                 subject: m.subject,
                 data: decoder.decode(m.data),
                 bytes: m.data,
+                headers: readHeaders(m),
                 timestamp: m.info?.timestampNanos ? Math.round(m.info.timestampNanos / 1e6) : Date.now(),
                 size: m.data.length,
                 seq: m.seq,

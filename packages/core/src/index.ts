@@ -7,3 +7,4 @@ export * from "./dlq.js";
 export * from "./errors.js";
 export * from "./insight.js";
 export * from "./codecs.js";
+export * from "./correlation.js";

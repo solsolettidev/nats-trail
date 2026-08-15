@@ -1,3 +1,4 @@
+import { DEFAULT_CORRELATION_KEYS, extractCorrelations, type CorrelationKey } from "./correlation.js";
 import type { AgentMessage, Message, NormalizedError, QueryEnvelope, QueryWarning } from "./types.js";
 
 export const DEFAULT_QUERY_LIMIT = 50;
@@ -63,7 +64,12 @@ export function createQueryEnvelope<T>(input: {
   };
 }
 
-export function toAgentMessage(message: Message, stream?: string, maxPayloadBytes = DEFAULT_PAYLOAD_LIMIT): AgentMessage {
+export function toAgentMessage(
+  message: Message,
+  stream?: string,
+  maxPayloadBytes = DEFAULT_PAYLOAD_LIMIT,
+  correlationKeys: CorrelationKey[] = DEFAULT_CORRELATION_KEYS,
+): AgentMessage {
   const encoding = message.encoding ?? (message.isJson ? "json" : "text");
   // A decoded protobuf or msgpack payload is the useful thing; raw binary
   // travels as base64, because handing an agent replacement characters invites
@@ -75,6 +81,7 @@ export function toAgentMessage(message: Message, stream?: string, maxPayloadByte
         ? message.base64 ?? ""
         : message.data;
   const payload = truncateText(source, maxPayloadBytes);
+  const correlations = extractCorrelations(message, correlationKeys);
   return {
     id: message.id,
     subject: message.subject,
@@ -87,20 +94,13 @@ export function toAgentMessage(message: Message, stream?: string, maxPayloadByte
     encoding,
     payloadTruncated: payload.truncated,
     json: payload.truncated ? null : message.json,
-    requestId: extractString(message.json, ["request_id", "requestId", "req_id"]),
-    correlationId: extractString(message.json, ["correlation_id", "correlationId", "corr_id"]),
+    correlations,
+    // Kept as named fields so existing tools and clients do not have to change.
+    requestId: correlations.request_id ?? null,
+    correlationId: correlations.correlation_id ?? null,
   };
 }
 
-function extractString(value: unknown, keys: string[]): string | null {
-  if (!value || typeof value !== "object") return null;
-  const record = value as Record<string, unknown>;
-  for (const key of keys) {
-    const found = record[key];
-    if (typeof found === "string" && found) return found;
-  }
-  return null;
-}
 
 function utf8ByteLength(value: string): number {
   let bytes = 0;

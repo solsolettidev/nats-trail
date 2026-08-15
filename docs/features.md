@@ -290,3 +290,49 @@ Two things the CLI refuses to let you get wrong:
 > **Binary snapshots are deliberately out.** `nats.js` exposes no snapshot API, and streaming message
 > bytes through the bridge would turn a debugging tool into a file transfer service. Use
 > `nats stream backup` for that.
+
+## Correlation keys
+
+What links messages together is not universal, so it is configured rather than assumed.
+
+A **correlation key** declares where to find one identifier:
+
+```jsonc
+{
+  "name": "order_id",
+  "headers": ["X-Order-Id"],   // tried first: the protocol level is authoritative
+  "paths": ["data.order.id"],  // dotted paths into the JSON payload
+  "format": "raw"              // or "w3c-traceparent"
+}
+```
+
+Messages carry a `correlations` map of every key they actually have. Absent keys are omitted rather
+than set to null, so the shape reports what was found.
+
+### Defaults
+
+Only conventions with a specification behind them:
+
+| Key | Source | Why |
+|---|---|---|
+| `trace_id` | `traceparent` header | W3C Trace Context — what OpenTelemetry emits |
+| `correlation_id` | headers, then payload | The Correlation Identifier pattern; native in AMQP and JMS |
+| `request_id` | headers, then payload | The `X-Request-Id` convention |
+
+**Business identifiers are never guessed.** Order ids, tenant ids and the like are configured.
+
+`trace_id` is the 32-hex id from the *middle* of `traceparent`, not the whole header: two spans of
+one trace differ in parent id and would otherwise never correlate. A malformed or all-zero trace id
+yields nothing.
+
+### Finding your own keys
+
+`suggestCorrelationKeys` proposes candidates from real traffic: string fields that are near-unique
+per message **and** appear on more than one subject. Unique-per-message means it identifies
+something; crossing subjects means it links them. A field that is unique but lives on one subject is
+reported as a likely entity id rather than hidden, so the judgement stays with the reader.
+
+Low-cardinality fields (`status`, `type`) are rejected — they categorise, they do not identify.
+
+> NATS headers were previously read on publish but never on receive, so header-carried identifiers
+> were invisible. They are now read on every path.

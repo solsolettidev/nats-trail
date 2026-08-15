@@ -496,6 +496,14 @@ export interface AgentMessage {
   encoding: PayloadEncoding;
   payloadTruncated: boolean;
   json: unknown | null;
+  /**
+   * Every configured correlation key that this message carries, keyed by name.
+   * Absent keys are omitted rather than set to null, so the shape says what was
+   * actually found.
+   */
+  correlations: Record<string, string>;
+  /** Alias for `correlations.request_id`, kept so existing callers keep working. */
   requestId: string | null;
+  /** Alias for `correlations.correlation_id`. */
   correlationId: string | null;
 }
