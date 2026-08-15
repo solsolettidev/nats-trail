@@ -360,3 +360,38 @@ correlates by. An unknown key is rejected with the list of configured ones rathe
 empty result that looks like "nothing found".
 
 `trace_by_request_id` and `trace_by_correlation_id` remain as named shortcuts that delegate to it.
+
+## Correlation index
+
+Content search cannot be delegated to NATS: subject and time filtering happen server-side, but
+finding a value *inside* a payload means reading messages. That is why `maxScan` exists, and why on
+a large stream a trace only ever saw the tail.
+
+An opt-in index removes that ceiling for the streams you choose:
+
+```bash
+nats-trail index build --stream ORDER_EVENTS
+nats-trail index status
+nats-trail index drop --stream ORDER_EVENTS --yes
+```
+
+Building reads the stream once and stores, per message, only the values of the **configured
+correlation keys** — identifiers, not a copy of the stream. A message carrying none stores nothing.
+It is backed by `node:sqlite`, which is why the floor is Node 22; there is no native dependency and
+nothing to install.
+
+**Building is human-only.** It is expensive, so an agent cannot start one. Querying is automatic:
+every trace uses the index for streams that have one and scans the rest.
+
+### Coverage is reported, not assumed
+
+An index that silently covered part of a stream would turn "no results" into a lie. Every indexed
+answer carries what it could see:
+
+```
+[index.used] ORDER_EVENTS: answered from the index, which covers sequences 1-105.
+             Anything outside that range was not consulted.
+```
+
+Rebuilding is idempotent and widens coverage rather than replacing it, so a second pass over a newer
+range cannot shrink what is known.

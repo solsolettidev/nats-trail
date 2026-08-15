@@ -66,6 +66,28 @@ export interface McpRuntimeData {
   streamSubjects?: (stream: string) => Promise<Record<string, number>>;
   /** Correlation keys in force for this context; defaults apply when absent. */
   correlationKeys?: CorrelationKey[];
+  /** Index lookup, when a correlation index has been built for this context. */
+  lookupCorrelation?: (key: string, value: string, limit: number) => IndexedLocation[];
+  /** What the index covers, so a miss can be told apart from a gap. */
+  indexCoverage?: () => IndexCoverage[];
+}
+
+/** Where an indexed correlation value was seen. */
+export interface IndexedLocation {
+  stream: string;
+  seq: number;
+  subject: string;
+  timestamp: number;
+}
+
+/** The sequence range of a stream that has actually been indexed. */
+export interface IndexCoverage {
+  stream: string;
+  fromSeq: number;
+  toSeq: number;
+  entries: number;
+  keys: string[];
+  updatedAt: number;
 }
 
 /** Every string leaf of a JSON value, as [dotted path, value] pairs. */
@@ -424,10 +446,33 @@ async function executeMcpToolInner(name: string, input: Record<string, unknown>,
       const warnings: QueryWarning[] = [];
       const budget = normalizeScan(input.maxScan);
 
+      // Indexed streams are answered by lookup instead of a sweep. Everything
+      // else still scans, so an index is an optimisation rather than a
+      // precondition.
+      const coverage = data.indexCoverage?.() ?? [];
+      const indexed = new Map(coverage.map((entry) => [entry.stream, entry]));
+
+      if (indexed.size > 0 && data.lookupCorrelation && data.getStreamMessage) {
+        for (const location of data.lookupCorrelation(key, value, limit)) {
+          if (found.length >= limit) break;
+          if (!indexed.has(location.stream)) continue;
+          const message = await data.getStreamMessage(location.stream, location.seq).catch(() => null);
+          if (message) found.push(toAgentMessage(message, location.stream, undefined, configured));
+        }
+        for (const entry of indexed.values()) {
+          warnings.push({
+            code: "index.used",
+            message: `${entry.stream}: answered from the index, which covers sequences ${entry.fromSeq}-${entry.toSeq}. Anything outside that range was not consulted.`,
+          });
+        }
+      }
+
       for (const stream of streams) {
         if (found.length >= limit) break;
         // KV and Object Store backing streams carry no application correlation.
         if (/^(KV|OBJ)_/.test(stream.name)) continue;
+        // Already answered above, and far more cheaply.
+        if (indexed.has(stream.name)) continue;
         const collected = await collectMatching(
           data.queryStreamMessages,
           { stream: stream.name, fromTs: numberInput(input.fromTs), toTs: numberInput(input.toTs) },

@@ -61,7 +61,7 @@ const DEFAULT_PREFS: Preferences = {
 };
 
 const NUMERIC_FLAGS = new Set([
-  "limit", "seq", "timeoutMs", "fromTs", "toTs", "maxScan", "port", "keep", "expectedRevision",
+  "maxMessages", "limit", "seq", "timeoutMs", "fromTs", "toTs", "maxScan", "port", "keep", "expectedRevision",
   "replicas", "maxAge", "maxMessages", "maxBytes", "startSeq", "ackWait", "maxDeliver",
 ]);
 
@@ -344,6 +344,21 @@ async function runCommand(args: string[]): Promise<void> {
 
   if (command[0] === "delete" && command[1] === "stream") {
     await deleteStream(command.slice(2), output);
+    return;
+  }
+
+  if (command[0] === "index" && command[1] === "status") {
+    await indexStatus(command.slice(2));
+    return;
+  }
+
+  if (command[0] === "index" && command[1] === "build") {
+    await buildIndex(command.slice(2), output);
+    return;
+  }
+
+  if (command[0] === "index" && command[1] === "drop") {
+    await dropIndex(command.slice(2), output);
     return;
   }
 
@@ -1014,6 +1029,50 @@ async function importStream(args: string[], output: Output): Promise<void> {
   else console.log(`imported ${stream.name} with ${created.length} consumer(s)${created.length ? `: ${created.join(", ")}` : ""}`);
 }
 
+/** Coverage of the correlation index: what was indexed, and how far back. */
+async function indexStatus(args: string[]): Promise<void> {
+  const input = readNamedArgs(args);
+  const contextId = stringValue(input.contextId) ?? (await detectContextId()) ?? '';
+  printJson(await bridgeGet('/index?contextId=' + encodeURIComponent(contextId)));
+}
+
+/**
+ * Build the correlation index for a stream.
+ *
+ * Human-only: it reads the whole stream once, and an agent should not be able
+ * to start a job that expensive. Querying the result is automatic.
+ */
+async function buildIndex(args: string[], output: Output): Promise<void> {
+  requireHumanInvocation('index build');
+  const input = readNamedArgs(args);
+  const stream = stringValue(input.stream);
+  if (!stream) fail('Usage: nats-trail index build --stream <name> [--max-messages <n>]');
+  const contextId = stringValue(input.contextId) ?? (await detectContextId()) ?? '';
+  const path = '/index/' + encodeURIComponent(stream) + '?contextId=' + encodeURIComponent(contextId);
+  const result = await bridgePost<{ scanned: number; stored: number; fromSeq: number; toSeq: number; keys: string[] }>(
+    path,
+    { maxMessages: numberValue(input.maxMessages) },
+  );
+  if (output === 'json' || output === 'ndjson') printJson(result);
+  else {
+    console.log(
+      'indexed ' + stream + ': ' + result.stored + ' entries from ' + result.scanned + ' messages, ' +
+        'sequences ' + result.fromSeq + '-' + result.toSeq + ', keys ' + result.keys.join(', '),
+    );
+  }
+}
+
+async function dropIndex(args: string[], output: Output): Promise<void> {
+  requireHumanInvocation('index drop');
+  const input = readNamedArgs(args);
+  const stream = stringValue(input.stream) ?? '*';
+  requireConfirmation('index drop', stream, input);
+  const contextId = stringValue(input.contextId) ?? (await detectContextId()) ?? '';
+  const path = '/index/' + encodeURIComponent(stream) + '?contextId=' + encodeURIComponent(contextId);
+  await bridgeRequest(path, { method: 'DELETE' });
+  if (output === 'text') console.log('dropped index for ' + stream);
+}
+
 async function upsertStream(args: string[], output: Output): Promise<void> {
   requireHumanInvocation("stream create");
   const input = readNamedArgs(args);
@@ -1218,6 +1277,9 @@ Commands:
   kv history                 Revision history for one key (--bucket --key)
   obj list                   List Object Store buckets
   obj objects                List objects in a bucket (--bucket)
+  index status               What the correlation index covers
+  index build                Index a stream by correlation key (--stream)
+  index drop                 Drop an index (--stream, or all) --yes
   keys list                  Correlation keys in force for a context
   keys suggest               Propose correlation keys from real traffic
   discover                   Discover subjects and infer payload shapes

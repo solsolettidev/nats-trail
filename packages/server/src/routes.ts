@@ -16,6 +16,7 @@ import {
 import { executeMcpTool, mcpTools } from "@nats-trail/mcp";
 import { connectionPool } from "./connection.js";
 import { fetchServerConnections, fetchServerHealth } from "./monitoring.js";
+import { dropIndex, getCoverage, indexBatch, lookup, recordCoverage } from "./correlation-index.js";
 import { authEnabled, authenticate, canWrite } from "./auth.js";
 import {
   loadContexts,
@@ -233,6 +234,81 @@ router.post("/integration/enrich/sentry", async (req, res) => {
 });
 
 // ---- Saved filters ---------------------------------------------------------
+
+// ---- Correlation index -----------------------------------------------------
+//
+// Building reads a whole stream once, so it is human-initiated: an agent should
+// not be able to start an expensive job. Querying is automatic — every trace
+// uses the index when coverage exists.
+
+/**
+ * Page through a stream and store the correlation values of every message.
+ *
+ * Returns coverage rather than a bare count, because "indexed 40000 messages"
+ * says nothing about whether the value being looked for was in range.
+ */
+async function buildIndex(
+  contextId: string,
+  stream: string,
+  keys: CorrelationKey[],
+  maxMessages: number,
+): Promise<{ scanned: number; stored: number; fromSeq: number; toSeq: number }> {
+  const PAGE = 1000;
+  let startSeq: number | undefined;
+  let scanned = 0;
+  let stored = 0;
+  let fromSeq = 0;
+  let toSeq = 0;
+
+  while (scanned < maxMessages) {
+    const page = await connectionPool.queryStreamMessages(contextId, {
+      stream,
+      limit: Math.min(PAGE, maxMessages - scanned),
+      startSeq,
+      maxScan: Math.min(PAGE, maxMessages - scanned),
+    });
+    if (page.messages.length === 0) break;
+
+    stored += indexBatch(contextId, stream, page.messages, keys);
+    scanned += page.messages.length;
+
+    const first = page.messages[0].seq ?? 0;
+    const last = page.messages[page.messages.length - 1].seq ?? first;
+    if (fromSeq === 0) fromSeq = first;
+    toSeq = Math.max(toSeq, last);
+
+    if (!page.nextCursor) break;
+    startSeq = Number(page.nextCursor);
+  }
+
+  if (toSeq > 0) recordCoverage(contextId, stream, fromSeq, toSeq);
+  return { scanned, stored, fromSeq, toSeq };
+}
+
+router.get("/index", (req, res) => {
+  res.json(getCoverage(requestContextId(req)));
+});
+
+router.post("/index/:stream", async (req, res) => {
+  const contextId = requestContextId(req);
+  const maxMessages = Math.min(Number((req.body as { maxMessages?: number })?.maxMessages) || 1_000_000, 10_000_000);
+  try {
+    const keys = resolveCorrelationKeys(
+      loadContexts().find((item) => item.id === contextId)?.correlationKeys,
+      loadCorrelationKeys(),
+    );
+    const result = await buildIndex(contextId, req.params.stream, keys, maxMessages);
+    res.json({ ok: true, stream: req.params.stream, keys: keys.map((k) => k.name), ...result });
+  } catch (err) {
+    res.status(409).json({ error: normalizeError(err) });
+  }
+});
+
+router.delete("/index/:stream", (req, res) => {
+  const stream = req.params.stream === "*" ? undefined : req.params.stream;
+  dropIndex(requestContextId(req), stream);
+  res.json({ ok: true });
+});
 
 // ---- Correlation keys ------------------------------------------------------
 
@@ -736,6 +812,11 @@ function executeIntegrationTool(name: string, input: Record<string, unknown>) {
     listObjectBuckets: () => connectionPool.listObjectBuckets(target),
     listObjects: (bucket, limit) => connectionPool.listObjects(target, bucket, limit),
     streamSubjects: (stream) => connectionPool.streamSubjects(target, stream),
+    // The index answers a trace without sweeping every stream. It is only
+    // consulted for streams that were actually built, and reports its coverage
+    // so a miss is distinguishable from "not indexed that far back".
+    lookupCorrelation: (key, value, max) => lookup(target, key, value, max),
+    indexCoverage: () => getCoverage(target),
     correlationKeys: resolveCorrelationKeys(
       loadContexts().find((item) => item.id === target)?.correlationKeys,
       loadCorrelationKeys(),

@@ -37,6 +37,6 @@
   ],
   "main": "./dist/index.html",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   }
 }

@@ -29,3 +29,8 @@ packages/*/README.md
 
 # Downloaded tool, not part of the project
 mcp-publisher.exe
+
+# SQLite correlation index (local state, like the rest of data/)
+*.db
+*.db-wal
+*.db-shm

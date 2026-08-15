@@ -51,6 +51,6 @@
     "natstrail-server": "./dist/main.js"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   }
 }
