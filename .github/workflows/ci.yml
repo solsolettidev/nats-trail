@@ -31,3 +31,38 @@ jobs:
           done
           curl -sf http://127.0.0.1:4123/api/health
           curl -sf -o /dev/null -w '%{http_code}\n' http://127.0.0.1:4123/
+
+  chart:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - run: helm lint charts/nats-trail
+      # Render with values that exercise every conditional, then validate the
+      # result against the Kubernetes schemas. A chart that only lints can still
+      # produce manifests the API server rejects.
+      - name: Render and validate
+        run: |
+          cat > /tmp/values.yaml <<'VALUES'
+          config:
+            contexts:
+              - id: prod
+                name: Production
+                environment: prod
+                url: nats://nats.default.svc:4222
+                auth: { type: userpass, username: svc, password: "${NATS_PASSWORD}" }
+            correlationKeys:
+              - { name: trace_id, headers: ["traceparent"], format: w3c-traceparent }
+          auth:
+            existingSecret: nats-trail-tokens
+          ingress:
+            enabled: true
+            className: nginx
+          VALUES
+          helm template nt charts/nats-trail -f /tmp/values.yaml > /tmp/rendered.yaml
+          helm template nt charts/nats-trail --set persistence.enabled=false >> /tmp/rendered.yaml
+          helm template nt charts/nats-trail --set config.enabled=false >> /tmp/rendered.yaml
+      - name: Validate against Kubernetes schemas
+        run: |
+          curl -sL https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz | tar xz kubeconform
+          ./kubeconform -strict -summary /tmp/rendered.yaml
