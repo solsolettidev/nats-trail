@@ -121,7 +121,7 @@ npm run dev
 
 </details>
 
-**Requirements:** Node.js >= 20 and a reachable NATS server (`nats-server -js` is fine).
+**Requirements:** Node.js >= 22 (for the built-in SQLite used by the correlation index) and a reachable NATS server (`nats-server -js` is fine).
 
 ---
 
@@ -260,8 +260,7 @@ payload handling · nkey auth · subject discovery · flow reconstruction · hea
 enrichment for Sentry, Grafana and Datadog · stream, consumer and KV administration — all writes
 human-only, behind scoped tokens and audited with their arguments.
 
-**Next** — MCP registry and Smithery listings · Object Store writes · stream backup and restore ·
-indexed search to remove the scan-budget ceiling.
+**Next** — multi-user access and cluster awareness, both open design questions rather than pending work.
 
 **Deliberately out** — protobuf and msgpack *field* decoding (needs a per-subject schema registry)
 and competing with [NUI](https://github.com/nats-nui/nui) on GUI breadth. See

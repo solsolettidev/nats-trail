@@ -72,7 +72,7 @@ The reason an agent can be pointed at production is structural, not procedural:
 it is a deliberate act with a different name in the MCP client config. It is never a flag on
 `natstrail-mcp`, because the value of the read-only claim is precisely that it cannot be toggled.
 
-## Phase 3 — Extend the lead
+## Phase 3 — Extend the lead ✅
 
 Uncontested ground. Phase 0 buys the audience for this.
 
@@ -83,7 +83,18 @@ Uncontested ground. Phase 0 buys the audience for this.
 | 3.3 | **Flow reconstruction** | **done** — `natstrail.reconstruct_flow` plus a `Trace` tab that renders the chain and highlights the failing step |
 | 3.4 | **Health summary tool** | **done** — `natstrail.get_health_summary`, ranked critical-first, with a "What is broken?" button in the UI |
 | 3.5 | More integrations on the Sentry pattern | **done** — Sentry, Grafana, Datadog and PagerDuty. One `enrich_incident` tool builds a flat context; each route only reshapes it |
-| 3.6 | Indexed search over stream history | **open** — large, and only worth it once there are users |
+| 3.6 | Indexed search over stream history | **done** — opt-in per stream, backed by `node:sqlite` (hence the Node 22 floor), indexing the configured correlation keys and reporting the sequence range it covers. Building is human-only; querying is automatic |
+
+---
+
+## Open
+
+| Task | Notes |
+|---|---|
+| Multi-user | Still a single-user local tool: `data/` on disk, no login, loopback binding. A team cannot share an instance. The one gap identified in the competitive review that has no decision behind it yet |
+| Cluster awareness | Topology, supercluster and leaf-node visibility. Deliberately deferred rather than refused — see below |
+| Smithery listing | Requires building an `.mcpb` bundle, a distribution artifact rather than a config file |
+| Protobuf field *names* | Needs a per-subject schema registry. The wire format is decoded; only the names are missing |
 
 ---
 
