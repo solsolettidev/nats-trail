@@ -4,17 +4,18 @@ on:
   push:
     tags: ["v*"]
 
-# Publishes with npm trusted publishing (OIDC): no long-lived token, and
-# provenance attestations are generated automatically.
+# Publishes with npm trusted publishing (OIDC). There is no token anywhere: the
+# runner exchanges a short-lived, signed GitHub identity for publish rights, and
+# npm generates provenance attestations automatically.
 #
-# Each package needs its trusted publisher configured once on npmjs.com
-# (Settings -> Trusted publisher) pointing at:
+# Each package has its trusted publisher configured on npmjs.com pointing at:
 #   owner/repo:   solsolettidev/nats-trail
 #   workflow:     release.yml
 #   environment:  release
 #
-# NODE_AUTH_TOKEN is read as a fallback so a release still works before those
-# five settings exist. Once they do, delete the secret — that is the point.
+# Deliberately no NODE_AUTH_TOKEN fallback: setup-node writes the value into
+# .npmrc even when it is empty, and `_authToken=` is worse than no auth line at
+# all — it turns a missing trusted publisher into a confusing auth error.
 
 jobs:
   publish:
@@ -44,7 +45,7 @@ jobs:
       - name: Publish packages
         run: |
           for pkg in core mcp ui server cli; do
+            echo "::group::publish $pkg"
             npm publish --workspace "packages/$pkg" --access public
+            echo "::endgroup::"
           done
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
