@@ -6,6 +6,9 @@ import { Empty } from "./states.js";
 /** Payload badge colour: JSON reads as structured, binary as a warning. */
 function badgeVariant(encoding: Message["encoding"]): string {
   if (encoding === "json") return "json";
+  // A decoded protobuf or msgpack payload is as readable as JSON; only bytes
+  // nothing could decode deserve a warning colour.
+  if (encoding === "protobuf" || encoding === "msgpack") return "json";
   if (encoding === "binary") return "warn";
   return "text";
 }
@@ -53,6 +56,7 @@ export function MessageViewer({
     );
 
   const binary = message.encoding === "binary";
+  const decoded = message.decoded !== undefined;
   const showTree = mode === "tree" && message.isJson;
   const q = query.trim().toLowerCase();
 
@@ -113,6 +117,11 @@ export function MessageViewer({
           />
         </div>
         {showTree && <span className="viewer__matchcount">click a key to copy its path</span>}
+        {decoded && (
+          <span className="viewer__matchcount">
+            decoded from {message.encoding} without a schema · field names need a descriptor
+          </span>
+        )}
         {binary && (
           <span className="viewer__matchcount">
             not valid UTF-8 · showing a hex dump of the first {fmtBytes(hexBytes(message.hex))}

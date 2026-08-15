@@ -65,10 +65,15 @@ export function createQueryEnvelope<T>(input: {
 
 export function toAgentMessage(message: Message, stream?: string, maxPayloadBytes = DEFAULT_PAYLOAD_LIMIT): AgentMessage {
   const encoding = message.encoding ?? (message.isJson ? "json" : "text");
-  // Binary payloads travel as base64: the decoded text is lossy, and handing an
-  // agent replacement characters invites it to reason about bytes that were
-  // never there.
-  const source = encoding === "binary" ? message.base64 ?? "" : message.data;
+  // A decoded protobuf or msgpack payload is the useful thing; raw binary
+  // travels as base64, because handing an agent replacement characters invites
+  // it to reason about bytes that were never there.
+  const source =
+    message.decoded !== undefined
+      ? JSON.stringify(message.decoded)
+      : encoding === "binary"
+        ? message.base64 ?? ""
+        : message.data;
   const payload = truncateText(source, maxPayloadBytes);
   return {
     id: message.id,

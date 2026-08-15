@@ -145,8 +145,20 @@ CLI only — the MCP runtime stays read-only by construction.
 - Agents receive binary payloads as **base64** with `encoding: "binary"`, never as lossy text — an
   agent must not reason about bytes that were never there.
 
-> Protobuf and msgpack are shown as byte dumps, not decoded into fields. Decoding protobuf needs a
-> schema descriptor per subject, and msgpack needs a decoding dependency; both are open decisions.
+### Protobuf and msgpack
+
+Both are decoded **without a schema and without a dependency**.
+
+- **msgpack** decodes to the actual value: maps, arrays, sized integers, floats, binary as hex.
+- **protobuf** decodes the wire format into field *numbers*, types and values, recursing into
+  nested messages. Field **names** need a descriptor and are deliberately not guessed.
+
+Both decoders return nothing rather than guess: trailing bytes, invalid UTF-8, unknown wire types
+or unsupported ext types all fall back to the hex dump. A confident wrong decode would be worse
+than no decode, because it would look authoritative.
+
+Agents receive the decode instead of base64 — structured fields beat bytes they would have to
+decode themselves.
 
 ## Agent-native insight
 

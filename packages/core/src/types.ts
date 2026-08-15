@@ -63,7 +63,7 @@ export interface ConnectionState {
  * `binary` means the bytes are not valid UTF-8 text, so `data` is lossy and
  * `hex` / `base64` are the only faithful representations.
  */
-export type PayloadEncoding = "json" | "text" | "binary";
+export type PayloadEncoding = "json" | "text" | "binary" | "protobuf" | "msgpack";
 
 export interface Message {
   id: string;
@@ -81,6 +81,14 @@ export interface Message {
   hex?: string;
   /** Base64 of the payload, only for binary payloads and capped in length. */
   base64?: string;
+  /**
+   * Schema-less decode of a binary payload, when one succeeded.
+   *
+   * For `protobuf` this is a field list keyed by number — names need a
+   * descriptor and are deliberately not guessed. For `msgpack` it is the
+   * decoded value.
+   */
+  decoded?: unknown;
   /** Payload size in bytes. */
   size: number;
   /** NATS reply subject, if any. */

@@ -161,6 +161,45 @@ router.post("/integration/enrich/datadog", async (req, res) => {
   });
 });
 
+/**
+ * PagerDuty Events API v2 payload.
+ *
+ * `dedup_key` is the correlation value, so repeated enrichment for the same
+ * incident updates one alert instead of paging twice.
+ */
+router.post("/integration/enrich/pagerduty", async (req, res) => {
+  const { context, errors, returned } = await incidentContext(req);
+  auditEnrichment(req, res, "enrich.pagerduty", returned, errors.length);
+  if (!context) return res.status(409).json({ errors });
+
+  const failed = context.flow?.failed ?? false;
+  res.json({
+    // routing_key is intentionally absent: it is the caller's integration
+    // secret, and the bridge has no business holding it.
+    event_action: failed ? "trigger" : "resolve",
+    dedup_key: `nats-trail/${context.key}/${context.value}`,
+    payload: {
+      summary: context.summary.slice(0, 1024),
+      source: context.flow?.failedAt?.stream ?? "nats-trail",
+      severity: failed ? "error" : "info",
+      component: context.flow?.failedAt?.subject ?? null,
+      group: context.flow?.streams.join(", ") || null,
+      class: context.key,
+      custom_details: {
+        [context.key]: context.value,
+        failed_at: context.flow?.failedAt?.subject ?? null,
+        failure_reason: context.flow?.failedAt?.detail ?? null,
+        steps: context.flow?.steps.length ?? 0,
+        duration_ms: context.flow?.durationMs ?? null,
+        streams: context.flow?.streams ?? [],
+        dead_letters: context.dlq.length,
+        findings: context.findings.map((f) => `[${f.severity}] ${f.message}`),
+      },
+    },
+    links: context.traceUrl ? [{ href: context.traceUrl, text: "Open trace in NATS Trail" }] : [],
+  });
+});
+
 // Kept for compatibility: the original Sentry shape, now built from the same
 // context rather than a bundle of nested envelopes.
 router.post("/integration/enrich/sentry", async (req, res) => {

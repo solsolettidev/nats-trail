@@ -1,3 +1,4 @@
+import { decodeMsgpack, decodeProtobuf } from "./codecs.js";
 import type { Message, PayloadEncoding } from "./types.js";
 
 /** Bytes rendered for a binary payload before the preview is cut. */
@@ -79,8 +80,26 @@ export interface ParseMessageInput {
 export function parseMessage(input: ParseMessageInput): Message {
   const json = tryParseJson(input.data);
   const binary = json === null && input.data.length > 0 && looksBinary(input.data);
-  const encoding: PayloadEncoding = json !== null ? "json" : binary ? "binary" : "text";
   const preview = binary && input.bytes ? input.bytes.subarray(0, BINARY_PREVIEW_BYTES) : null;
+
+  // Only attempt a structured decode once the payload is known to be binary,
+  // and only with the original bytes. Both decoders return null rather than
+  // guess, so a failed attempt costs nothing but a hex dump.
+  let encoding: PayloadEncoding = json !== null ? "json" : binary ? "binary" : "text";
+  let decoded: unknown;
+  if (binary && input.bytes) {
+    const msgpack = decodeMsgpack(input.bytes);
+    if (msgpack) {
+      encoding = "msgpack";
+      decoded = msgpack.value;
+    } else {
+      const protobuf = decodeProtobuf(input.bytes);
+      if (protobuf) {
+        encoding = "protobuf";
+        decoded = protobuf;
+      }
+    }
+  }
 
   return {
     id: input.id ?? makeId(input.subject, input.timestamp, input.seq),
@@ -90,6 +109,7 @@ export function parseMessage(input: ParseMessageInput): Message {
     json,
     isJson: json !== null,
     encoding,
+    decoded,
     hex: preview ? toHex(preview) : undefined,
     base64: preview ? toBase64(preview) : undefined,
     size: input.size ?? byteLength(input.data),
@@ -103,7 +123,7 @@ export function parseMessage(input: ParseMessageInput): Message {
  * Pretty-printed payload: indented JSON when possible, a hex dump for binary,
  * raw text otherwise.
  */
-export function formatPayload(message: Pick<Message, "json" | "isJson" | "data"> & Partial<Pick<Message, "encoding" | "hex">>): string {
+export function formatPayload(message: Pick<Message, "json" | "isJson" | "data"> & Partial<Pick<Message, "encoding" | "hex" | "decoded">>): string {
   if (message.isJson) {
     try {
       return JSON.stringify(message.json, null, 2);
@@ -111,7 +131,16 @@ export function formatPayload(message: Pick<Message, "json" | "isJson" | "data">
       return message.data;
     }
   }
-  if (message.encoding === "binary" && message.hex) return formatHexDump(message.hex);
+  // A structured decode is what the reader actually wants; the hex dump is the
+  // fallback for bytes nothing could make sense of.
+  if (message.decoded !== undefined) {
+    try {
+      return JSON.stringify(message.decoded, null, 2);
+    } catch {
+      // fall through to the dump
+    }
+  }
+  if (message.hex) return formatHexDump(message.hex);
   return message.data;
 }
 
