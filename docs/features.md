@@ -395,3 +395,16 @@ answer carries what it could see:
 
 Rebuilding is idempotent and widens coverage rather than replacing it, so a second pass over a newer
 range cannot shrink what is known.
+
+## No runtime egress
+
+The UI fetched its icon fonts from a CDN, which meant it rendered without a single icon in an
+air-gapped network, behind a corporate proxy, or under a CSP that forbids third-party styles.
+
+Everything is now bundled and served by the container. Only the `woff2` of each weight in use ships:
+the icon package declares five formats per weight for very old browsers, and bundling all of them
+cost 16 MB, of which 10 MB was SVG fonts. A Vite transform keeps `woff2` only, which every browser
+of the last decade supports — 1.2 MB total.
+
+Nothing in the product reaches the public internet at runtime. It has to run wherever the
+infrastructure is, including networks with no egress at all.
