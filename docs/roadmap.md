@@ -78,11 +78,11 @@ Uncontested ground. Phase 0 buys the audience for this.
 
 | # | Task | Why it matters |
 |---|---|---|
-| 3.1 | **Publish the MCP server** to the MCP registry | **prepared** — `packages/mcp/server.json` and the `mcpName` verification field are in place and version-synced on every release. The final `mcp-publisher login github && mcp-publisher publish` needs the GitHub account, see `docs/mcp-agent.md` |
+| 3.1 | **Publish the MCP server** to the MCP registry | **done** — listed as `io.github.solsolettidev/nats-trail`, and republished automatically on every tag via `mcp-publisher login github-oidc`. **Smithery is out for now**: it no longer accepts an npm stdio package and requires building an `.mcpb` bundle, which is a separate distribution artifact rather than a config file |
 | 3.2 | **Subject and schema discovery tool** | **done** — `natstrail.discover_subjects`: real subjects with counts, plus inferred field paths, types, presence and examples |
 | 3.3 | **Flow reconstruction** | **done** — `natstrail.reconstruct_flow` plus a `Trace` tab that renders the chain and highlights the failing step |
 | 3.4 | **Health summary tool** | **done** — `natstrail.get_health_summary`, ranked critical-first, with a "What is broken?" button in the UI |
-| 3.5 | More integrations on the Sentry pattern | **done for Grafana and Datadog** — one `enrich_incident` tool builds a flat context, each route only reshapes it. PagerDuty is another shaper away |
+| 3.5 | More integrations on the Sentry pattern | **done** — Sentry, Grafana, Datadog and PagerDuty. One `enrich_incident` tool builds a flat context; each route only reshapes it |
 | 3.6 | Indexed search over stream history | **open** — large, and only worth it once there are users |
 
 ---
