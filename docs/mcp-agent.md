@@ -205,8 +205,14 @@ a shaper, never another query:
 | `POST /api/integration/enrich/grafana` | Annotation: `time`, `timeEnd`, `tags`, `text` |
 | `POST /api/integration/enrich/datadog` | Event: `title`, markdown `text`, `alert_type`, `tags`, `aggregation_key` |
 | `POST /api/integration/enrich/sentry` | `message`, `level`, `fingerprint`, `contexts["nats-trail"]` |
+| `POST /api/integration/enrich/pagerduty` | Events API v2: `event_action`, `dedup_key`, `payload`, `links` |
 
 Pass `uiBaseUrl` to get a `traceUrl` deep link back into the Trace tab.
+
+The PagerDuty shaper sends `trigger` when the flow failed and `resolve` when it did not, keyed on
+the correlation value — repeated enrichment updates one alert instead of paging twice. It never
+includes `routing_key`: that is the caller's integration secret, and the bridge has no business
+holding it.
 
 > The registry caps `description` at 100 characters and enforces it at publish time.
 > `scripts/prepare-packages.mjs` checks it on every release so that is not discovered halfway
