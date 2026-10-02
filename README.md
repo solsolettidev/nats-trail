@@ -95,6 +95,16 @@ Prefer containers? The compose file brings up NATS Trail next to a JetStream-ena
 docker compose up
 ```
 
+On Kubernetes, the Helm chart declares contexts and correlation keys in `values.yaml` and keeps
+credentials in a Secret:
+
+```bash
+helm install nats-trail ./charts/nats-trail -f my-values.yaml
+```
+
+See [`charts/nats-trail/README.md`](charts/nats-trail/README.md) for declarative config, why it is a
+single-replica StatefulSet, and how authentication is delegated to whatever fronts the service.
+
 <details>
 <summary>From source</summary>
 
@@ -249,24 +259,30 @@ unauthenticated local endpoints. To expose the Integration API and the WebSocket
 tokens with `NATS_TRAIL_TOKENS=name:token` or `data/tokens.json`; audit entries then record the
 authenticated token name per call.
 
+A shared deployment has no built-in login on purpose: identity comes from whatever fronts the
+service (an ingress with OIDC, oauth2-proxy, Cloudflare Access, Teleport or network isolation), so no
+passwords are stored here. Contexts declared through `NATS_TRAIL_CONFIG` resolve `${VAR}` from the
+environment and cannot be edited or deleted through the API.
+
 ---
 
 ## Roadmap
 
 Tracked in [`docs/roadmap.md`](docs/roadmap.md).
 
-**Phases 0–2 are complete.** npm release · KV and Object Store browsing · server health · binary
+**Phases 0–3 are complete.** npm release · KV and Object Store browsing · server health · binary
 payload handling · nkey auth · subject discovery · flow reconstruction · health summary · incident
-enrichment for Sentry, Grafana and Datadog · stream, consumer and KV administration — all writes
-human-only, behind scoped tokens and audited with their arguments.
+enrichment for Sentry, Grafana, Datadog and PagerDuty · stream, consumer and KV administration ·
+MCP registry listing · indexed correlation search · declarative config and a Helm chart. All writes
+are human-only, behind scoped tokens and audited with their arguments.
 
-**Next** — multi-user access and cluster awareness, both open design questions rather than pending work.
+**Next:** cluster awareness, deliberately deferred rather than pending work.
 
 **Deliberately out** — protobuf and msgpack *field* decoding (needs a per-subject schema registry)
 and competing with [NUI](https://github.com/nats-nui/nui) on GUI breadth. See
 [`docs/roadmap.md`](docs/roadmap.md).
 
-**Soon** — for teams that explicitly want agent writes, a **separate opt-in binary**
+**Planned, not started:** for teams that explicitly want agent writes, a **separate opt-in binary**
 (`natstrail-mcp-write`) that has to be installed on purpose. Never a flag on the read-only server:
 the guarantee above is only worth something if it cannot be switched off by accident.
 

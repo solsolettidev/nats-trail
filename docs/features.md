@@ -97,12 +97,12 @@ Every panel handles: loading, empty, error, connected and disconnected.
 - `core`, `mcp`, `cli` and `server` compile to `dist/` through TypeScript project references.
 - `nats-trail`, `natstrail-server` and `natstrail-mcp` are `bin` entries running under plain `node`.
 - `npm start` serves the built UI and the API from one process on `127.0.0.1:4000`.
+- A Docker image and a Helm chart (`charts/nats-trail`) for running it next to the cluster.
 
 ## Planned
 
-See [`roadmap.md`](roadmap.md) for the prioritized plan. In short: distribution (npm, Docker),
-KV and Object Store browsing, server health, payload codecs, then write operations for the UI and
-CLI only — the MCP runtime stays read-only by construction.
+Phases 0 to 3 of [`roadmap.md`](roadmap.md) are complete; what is left is listed under its Open
+section. The MCP runtime stays read-only by construction.
 
 ## KV Store
 
@@ -408,3 +408,25 @@ of the last decade supports — 1.2 MB total.
 
 Nothing in the product reaches the public internet at runtime. It has to run wherever the
 infrastructure is, including networks with no egress at all.
+
+## Declarative configuration
+
+An operator can declare the instance instead of setting it up through the UI. `NATS_TRAIL_CONFIG`
+points at a JSON file with `contexts` and `correlationKeys`, read once at startup.
+
+- Declared contexts are merged with stored ones, and the declared entry wins on a shared id.
+- The API refuses to edit or delete a declared context, and refuses to change correlation keys
+  while any are declared, so the file stays the source of truth.
+- `${VAR}` in any string is resolved from the environment. An unset variable is a load error, never
+  an empty string, so a missing Secret cannot turn into a blank password.
+- `GET /api/config` reports what was declared (credentials stripped), the config path and every
+  load error, so a deployment can be checked without shelling in.
+
+## Helm chart
+
+`charts/nats-trail` deploys a single-replica StatefulSet with a persistent volume, a ConfigMap
+rendered from `values.config`, optional ingress and bearer tokens from an existing Secret. One
+replica is deliberate: local state lives in SQLite, which a second replica would corrupt. Probes
+only check that the process is serving, so a NATS outage does not take the tool away. CI lints the
+chart and validates the rendered manifests against the Kubernetes schemas. Details in
+[`charts/nats-trail/README.md`](../charts/nats-trail/README.md).
