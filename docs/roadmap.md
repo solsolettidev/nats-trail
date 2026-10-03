@@ -84,7 +84,7 @@ Uncontested ground. Phase 0 buys the audience for this.
 | 3.4 | **Health summary tool** | **done** — `natstrail.get_health_summary`, ranked critical-first, with a "What is broken?" button in the UI |
 | 3.5 | More integrations on the Sentry pattern | **done** — Sentry, Grafana, Datadog and PagerDuty. One `enrich_incident` tool builds a flat context; each route only reshapes it |
 | 3.6 | Indexed search over stream history | **done** — opt-in per stream, backed by `node:sqlite` (hence the Node 22 floor), indexing the configured correlation keys and reporting the sequence range it covers. Building is human-only; querying is automatic |
-| 3.7 | **Deploy as a shared instance** | **done**: declarative config through `NATS_TRAIL_CONFIG` and a Helm chart. Multi-user is decided: identity is delegated to whatever fronts the service (OIDC ingress, oauth2-proxy, Cloudflare Access, Teleport) instead of a login stored here, and the instance stays a single replica because its state is SQLite |
+| 3.7 | **Deploy as a shared instance** | **done**: declarative config through `NATS_TRAIL_CONFIG` and a Helm chart. Multi-user is decided: identity is delegated to whatever fronts the service (OIDC ingress, oauth2-proxy, Cloudflare Access, Teleport) instead of a login stored here, and the instance stays a single replica because its state is SQLite. Every tag publishes a multi-arch image to `ghcr.io/solsolettidev/nats-trail` for the chart to pull |
 
 ---
 
@@ -92,7 +92,6 @@ Uncontested ground. Phase 0 buys the audience for this.
 
 | Task | Notes |
 |---|---|
-| Container image publishing | The chart and compose file reference `ghcr.io/solsolettidev/nats-trail`, but no workflow pushes it yet, so `helm install` needs a locally built image |
 | Cluster awareness | Topology, supercluster and leaf-node visibility. Deliberately deferred rather than refused — see below |
 | Smithery listing | Requires building an `.mcpb` bundle, a distribution artifact rather than a config file |
 | Protobuf field *names* | Needs a per-subject schema registry. The wire format is decoded; only the names are missing |

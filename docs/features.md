@@ -97,7 +97,7 @@ Every panel handles: loading, empty, error, connected and disconnected.
 - `core`, `mcp`, `cli` and `server` compile to `dist/` through TypeScript project references.
 - `nats-trail`, `natstrail-server` and `natstrail-mcp` are `bin` entries running under plain `node`.
 - `npm start` serves the built UI and the API from one process on `127.0.0.1:4000`.
-- A Docker image and a Helm chart (`charts/nats-trail`) for running it next to the cluster.
+- A Docker image, published for amd64 and arm64 to `ghcr.io/solsolettidev/nats-trail` on every tag, and a Helm chart (`charts/nats-trail`) that pulls it.
 
 ## Planned
 
